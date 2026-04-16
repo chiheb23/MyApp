@@ -3,14 +3,15 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-// Configuration Firebase (à remplacer par vos propres clés de la console Firebase)
+// Configuration Firebase récupérée depuis la capture d'écran de l'utilisateur
 const firebaseConfig = {
-  apiKey: "VOTRE_API_KEY",
-  authDomain: "votre-projet.firebaseapp.com",
-  projectId: "votre-projet",
-  storageBucket: "votre-projet.firebasestorage.app",
-  messagingSenderId: "VOTRE_SENDER_ID",
-  appId: "VOTRE_APP_ID"
+  apiKey: "AIzaSyBvpqPvSE-cSA2cGHV0mi1tc90e29iDyR8",
+  authDomain: "football-1a271.firebaseapp.com",
+  projectId: "football-1a271",
+  storageBucket: "football-1a271.firebasestorage.app",
+  messagingSenderId: "605161827570",
+  appId: "1:605161827570:web:1e38823223861b86bb746b",
+  measurementId: "G-JN7FL4FGV7"
 };
 
 // Initialisation de Firebase
