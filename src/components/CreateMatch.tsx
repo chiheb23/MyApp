@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { ArrowLeft, MapPin, Calendar, Clock, CreditCard, Check, Info } from 'lucide-react';
-import { places } from '../data';
+import { places, currentUser } from '../data';
+import { matchService } from '../services/matchService';
+import { Match } from '../types';
 
 interface CreateMatchProps {
   onNavigate: (page: string) => void;
@@ -20,6 +22,7 @@ export default function CreateMatch({ onNavigate }: CreateMatchProps) {
     description: '',
   });
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const maxPlayersMap: Record<string, number> = { '5v5': 10, '7v7': 14, '11v11': 22 };
 
@@ -277,10 +280,54 @@ export default function CreateMatch({ onNavigate }: CreateMatchProps) {
                 Retour
               </button>
               <button
-                onClick={() => setSubmitted(true)}
-                className="flex-1 py-3 rounded-xl btn-primary text-white font-semibold"
+                onClick={async () => {
+                  setIsSubmitting(true);
+                  const selectedPlace = places.find(p => p.id === form.placeId);
+                  if (!selectedPlace) return;
+
+                  const newMatch: Omit<Match, 'id'> = {
+                    title: form.title,
+                    ownerId: currentUser.id,
+                    ownerName: currentUser.name,
+                    ownerAvatar: currentUser.avatar,
+                    placeId: selectedPlace.id,
+                    placeName: selectedPlace.name,
+                    placeCity: selectedPlace.city,
+                    placeAddress: selectedPlace.address,
+                    lat: selectedPlace.lat,
+                    lng: selectedPlace.lng,
+                    datetime: `${form.date}T${form.time}:00`,
+                    duration: form.duration,
+                    maxPlayers: form.maxPlayers,
+                    currentPlayers: 1,
+                    fee: form.fee,
+                    status: 'open',
+                    type: form.type as any,
+                    description: form.description,
+                    players: [{
+                      userId: currentUser.id,
+                      name: currentUser.name,
+                      avatar: currentUser.avatar,
+                      position: currentUser.position,
+                      rating: currentUser.rating,
+                      paid: true
+                    }]
+                  };
+
+                  try {
+                    await matchService.createMatch(newMatch);
+                    setSubmitted(true);
+                  } catch (error) {
+                    console.error("Erreur lors de la création du match:", error);
+                    alert("Une erreur est survenue lors de la création du match.");
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+                disabled={isSubmitting}
+                className="flex-1 py-3 rounded-xl btn-primary text-white font-semibold disabled:opacity-50"
               >
-                🚀 Publier le Match
+                {isSubmitting ? 'Publication...' : '🚀 Publier le Match'}
               </button>
             </div>
           </div>

@@ -1,11 +1,24 @@
-import { MapPin, Calendar, Trophy, ArrowRight } from 'lucide-react';
-import { tournaments } from '../data';
+import { useState, useEffect } from 'react';
+import { MapPin, Calendar, Trophy, ArrowRight, Loader2 } from 'lucide-react';
+import { tournamentService } from '../services/tournamentService';
+import { Tournament } from '../types';
 
 interface TournamentsProps {
   onNavigate: (page: string, id?: string) => void;
 }
 
 export default function Tournaments({ onNavigate }: TournamentsProps) {
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = tournamentService.subscribeToTournaments((data) => {
+      setTournaments(data);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -18,8 +31,13 @@ export default function Tournaments({ onNavigate }: TournamentsProps) {
         </button>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {tournaments.map(t => (
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <Loader2 className="animate-spin text-emerald-500" size={40} />
+        </div>
+      ) : (
+        <div className="grid md:grid-cols-2 gap-6">
+          {tournaments.map(t => (
           <div
             key={t.id}
             onClick={() => onNavigate('tournament-detail', t.id)}
@@ -104,8 +122,9 @@ export default function Tournaments({ onNavigate }: TournamentsProps) {
               </button>
             </div>
           </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

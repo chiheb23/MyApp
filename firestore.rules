@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Règles pour les utilisateurs
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Règles pour les matchs
+    match /matches/{matchId} {
+      allow read: if true; // Tout le monde peut voir les matchs
+      allow create: if request.auth != null; // Seuls les utilisateurs connectés peuvent créer un match
+      allow update: if request.auth != null; // Seuls les utilisateurs connectés peuvent rejoindre un match
+      allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; // Seul l'organisateur peut supprimer
+    }
+
+    // Règles pour les messages de chat
+    match /messages/{messageId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+    }
+  }
+}

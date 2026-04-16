@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MapPin, Clock, Users, ArrowLeft, Star, CreditCard, MessageCircle, Share2, Check, X } from 'lucide-react';
-import { matches } from '../data';
+import { currentUser } from '../data';
+import { matchService } from '../services/matchService';
+import { Match } from '../types';
 
 interface MatchDetailProps {
   matchId: string;
@@ -8,9 +10,48 @@ interface MatchDetailProps {
 }
 
 export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
-  const match = matches.find(m => m.id === matchId) || matches[0];
+  const [match, setMatch] = useState<Match | null>(null);
+  const [loading, setLoading] = useState(true);
   const [joined, setJoined] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
+
+  useEffect(() => {
+    if (!matchId) return;
+
+    // Récupérer le match initial
+    matchService.getMatchById(matchId).then(data => {
+      if (data) {
+        setMatch(data);
+        // Vérifier si l'utilisateur est déjà dans la liste des joueurs
+        const isAlreadyJoined = data.players.some(p => p.userId === currentUser.id);
+        setJoined(isAlreadyJoined);
+      }
+      setLoading(false);
+    });
+
+    // Optionnel: S'abonner aux mises à jour en temps réel pour ce match spécifique
+    // Pour simplifier ici, on utilise le chargement initial, mais on pourrait ajouter un listener
+  }, [matchId]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+      </div>
+    );
+  }
+
+  if (!match) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-20 text-center">
+        <p className="text-xl text-slate-400">Match non trouvé.</p>
+        <button onClick={() => onNavigate('matches')} className="mt-4 btn-primary px-6 py-2 rounded-xl text-white">
+          Retour aux matchs
+        </button>
+      </div>
+    );
+  }
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString('fr-TN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const formatTime = (d: string) => new Date(d).toLocaleTimeString('fr-TN', { hour: '2-digit', minute: '2-digit' });
@@ -197,10 +238,34 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
 
                 <div className="flex gap-2">
                   <button
-                    onClick={() => { setJoined(true); setShowPayment(false); }}
-                    className="flex-1 py-3 rounded-xl btn-primary text-white font-semibold"
+                    onClick={async () => {
+                      setIsJoining(true);
+                      try {
+                        const player = {
+                          userId: currentUser.id,
+                          name: currentUser.name,
+                          avatar: currentUser.avatar,
+                          position: currentUser.position,
+                          rating: currentUser.rating,
+                          paid: true // Simulé pour le moment
+                        };
+                        await matchService.joinMatch(matchId, player);
+                        setJoined(true);
+                        setShowPayment(false);
+                        // Rafraîchir les données du match localement
+                        const updatedMatch = await matchService.getMatchById(matchId);
+                        if (updatedMatch) setMatch(updatedMatch);
+                      } catch (error) {
+                        console.error("Erreur lors de l'inscription:", error);
+                        alert("Une erreur est survenue.");
+                      } finally {
+                        setIsJoining(false);
+                      }
+                    }}
+                    disabled={isJoining}
+                    className="flex-1 py-3 rounded-xl btn-primary text-white font-semibold disabled:opacity-50"
                   >
-                    Confirmer ({match.fee} DT)
+                    {isJoining ? 'Inscription...' : `Confirmer (${match.fee} DT)`}
                   </button>
                   <button
                     onClick={() => setShowPayment(false)}

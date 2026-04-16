@@ -1,12 +1,29 @@
 import { MapPin, Clock, Users, ChevronRight, Trophy, TrendingUp, Calendar, Bell } from 'lucide-react';
-import { matches, tournaments, notifications, currentUser } from '../data';
+import { tournaments, notifications, currentUser } from '../data';
+import { matchService } from '../services/matchService';
+import { Match } from '../types';
+import { useState, useEffect } from 'react';
 
 interface DashboardProps {
   onNavigate: (page: string, id?: string) => void;
 }
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
-  const upcomingMatches = matches.filter(m => m.status === 'open' || m.status === 'full').slice(0, 3);
+  const [upcomingMatches, setUpcomingMatches] = useState<Match[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = matchService.subscribeToMatches((allMatches) => {
+      const filtered = allMatches
+        .filter(m => m.status === 'open' || m.status === 'full')
+        .slice(0, 3);
+      setUpcomingMatches(filtered);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const activeTournaments = tournaments.filter(t => t.status !== 'completed').slice(0, 2);
   const unreadNotifications = notifications.filter(n => !n.read);
 
@@ -72,7 +89,15 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             </button>
           </div>
 
-          {upcomingMatches.map(match => (
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+            </div>
+          ) : upcomingMatches.length === 0 ? (
+            <div className="glass rounded-xl p-8 text-center text-slate-400">
+              Aucun match prévu pour le moment.
+            </div>
+          ) : upcomingMatches.map(match => (
             <div
               key={match.id}
               onClick={() => onNavigate('match-detail', match.id)}

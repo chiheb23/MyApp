@@ -1,17 +1,67 @@
-import { Star, MapPin, Calendar, TrendingUp, Award, Edit, Shield, ChevronRight } from 'lucide-react';
-import { currentUser } from '../data';
+import { useState, useEffect } from 'react';
+import { Star, MapPin, Calendar, TrendingUp, Award, Edit, Shield, ChevronRight, Save, X, Loader2 } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { userService } from '../services/userService';
+import { User } from '../types';
 
 interface ProfileProps {
   onNavigate: (page: string) => void;
 }
 
 export default function Profile(_props: ProfileProps) {
+  const { firebaseUser, userProfile, loading: authLoading } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<User>>({});
+
+  useEffect(() => {
+    if (userProfile) {
+      setEditForm(userProfile);
+    }
+  }, [userProfile]);
+
+  if (authLoading) {
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 className="animate-spin text-emerald-500" size={40} />
+      </div>
+    );
+  }
+
+  const user = userProfile || {
+    id: 'guest',
+    name: 'Invité',
+    avatar: '👤',
+    city: 'Inconnue',
+    level: 'Débutant',
+    position: 'Non défini',
+    rating: 0,
+    matchesPlayed: 0,
+    goals: 0,
+    assists: 0,
+    joined: '',
+    phone: ''
+  };
+
+  const handleSave = async () => {
+    if (!firebaseUser) return;
+    setIsSaving(true);
+    try {
+      await userService.saveUserProfile(firebaseUser.uid, editForm);
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde:", error);
+      alert("Erreur lors de la sauvegarde du profil.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const statsData = [
-    { label: 'Matchs', value: currentUser.matchesPlayed, icon: '⚽', trend: '+5 ce mois' },
-    { label: 'Buts', value: currentUser.goals, icon: '🥅', trend: '+3 ce mois' },
-    { label: 'Passes D.', value: currentUser.assists, icon: '🎯', trend: '+2 ce mois' },
-    { label: 'Note', value: currentUser.rating.toFixed(1), icon: '⭐', trend: '+0.1' },
+    { label: 'Matchs', value: user.matchesPlayed, icon: '⚽', trend: '+5 ce mois' },
+    { label: 'Buts', value: user.goals, icon: '🥅', trend: '+3 ce mois' },
+    { label: 'Passes D.', value: user.assists, icon: '🎯', trend: '+2 ce mois' },
+    { label: 'Note', value: user.rating.toFixed(1), icon: '⭐', trend: '+0.1' },
   ];
 
   const badges = [
@@ -51,16 +101,63 @@ export default function Profile(_props: ProfileProps) {
             </div>
 
             <div className="text-center sm:text-left flex-1">
-              <h1 className="text-2xl font-bold">{currentUser.name}</h1>
-              <div className="flex items-center gap-3 justify-center sm:justify-start mt-2 text-sm text-slate-400 flex-wrap">
-                <span className="flex items-center gap-1"><MapPin size={14} className="text-emerald-400" /> {currentUser.city}</span>
-                <span className="flex items-center gap-1"><Shield size={14} className="text-blue-400" /> {currentUser.level}</span>
-                <span className="flex items-center gap-1"><Star size={14} className="text-amber-400 fill-amber-400" /> {currentUser.rating}</span>
-              </div>
-              <div className="flex items-center gap-2 justify-center sm:justify-start mt-2 flex-wrap">
-                <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-medium">{currentUser.position}</span>
-                <span className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs font-medium">{currentUser.level}</span>
-              </div>
+              {isEditing ? (
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={editForm.name || ''}
+                    onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                    className="bg-dark-card border border-dark-border rounded px-2 py-1 text-xl font-bold w-full"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={editForm.city || ''}
+                      onChange={e => setEditForm({ ...editForm, city: e.target.value })}
+                      placeholder="Ville"
+                      className="bg-dark-card border border-dark-border rounded px-2 py-1 text-sm"
+                    />
+                    <select
+                      value={editForm.level || 'Débutant'}
+                      onChange={e => setEditForm({ ...editForm, level: e.target.value as any })}
+                      className="bg-dark-card border border-dark-border rounded px-2 py-1 text-sm"
+                    >
+                      <option value="Débutant">Débutant</option>
+                      <option value="Intermédiaire">Intermédiaire</option>
+                      <option value="Avancé">Avancé</option>
+                      <option value="Pro">Pro</option>
+                    </select>
+                  </div>
+                  <input
+                    type="text"
+                    value={editForm.position || ''}
+                    onChange={e => setEditForm({ ...editForm, position: e.target.value })}
+                    placeholder="Position"
+                    className="bg-dark-card border border-dark-border rounded px-2 py-1 text-sm w-full"
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={handleSave} disabled={isSaving} className="btn-primary px-3 py-1 rounded text-xs flex items-center gap-1">
+                      {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} Sauvegarder
+                    </button>
+                    <button onClick={() => setIsEditing(false)} className="glass px-3 py-1 rounded text-xs flex items-center gap-1">
+                      <X size={12} /> Annuler
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <h1 className="text-2xl font-bold">{user.name}</h1>
+                  <div className="flex items-center gap-3 justify-center sm:justify-start mt-2 text-sm text-slate-400 flex-wrap">
+                    <span className="flex items-center gap-1"><MapPin size={14} className="text-emerald-400" /> {user.city}</span>
+                    <span className="flex items-center gap-1"><Shield size={14} className="text-blue-400" /> {user.level}</span>
+                    <span className="flex items-center gap-1"><Star size={14} className="text-amber-400 fill-amber-400" /> {user.rating}</span>
+                  </div>
+                  <div className="flex items-center gap-2 justify-center sm:justify-start mt-2 flex-wrap">
+                    <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-medium">{user.position}</span>
+                    <span className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs font-medium">{user.level}</span>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="flex items-center gap-1">
@@ -100,8 +197,8 @@ export default function Profile(_props: ProfileProps) {
           </h3>
           <div className="space-y-3">
             {[
-              { label: 'Buts / match', value: (currentUser.goals / currentUser.matchesPlayed).toFixed(2), pct: 65, color: 'bg-emerald-500' },
-              { label: 'Passes / match', value: (currentUser.assists / currentUser.matchesPlayed).toFixed(2), pct: 52, color: 'bg-blue-500' },
+          { label: 'Buts / match', value: user.matchesPlayed > 0 ? (user.goals / user.matchesPlayed).toFixed(2) : '0', pct: 65, color: 'bg-emerald-500' },
+          { label: 'Passes / match', value: user.matchesPlayed > 0 ? (user.assists / user.matchesPlayed).toFixed(2) : '0', pct: 52, color: 'bg-blue-500' },
               { label: 'Victoires', value: '62%', pct: 62, color: 'bg-amber-500' },
               { label: 'Présence', value: '95%', pct: 95, color: 'bg-purple-500' },
               { label: 'Fair-play', value: '4.8/5', pct: 96, color: 'bg-cyan-500' },
@@ -163,13 +260,17 @@ export default function Profile(_props: ProfileProps) {
 
       {/* Settings links */}
       <div className="glass rounded-2xl overflow-hidden">
-        {[
-          { label: 'Modifier le profil', icon: Edit, color: 'text-emerald-400' },
+             {[
+          { label: 'Modifier le profil', icon: Edit, color: 'text-emerald-400', onClick: () => setIsEditing(true) },
           { label: 'Paramètres de notification', icon: Calendar, color: 'text-amber-400' },
           { label: 'Méthodes de paiement', icon: Shield, color: 'text-blue-400' },
           { label: 'Confidentialité & sécurité', icon: Shield, color: 'text-purple-400' },
         ].map((item, i) => (
-          <div key={i} className="flex items-center gap-3 p-4 hover:bg-dark/50 cursor-pointer transition-colors border-b border-dark-border last:border-0">
+          <div 
+            key={i} 
+            onClick={item.onClick}
+            className="flex items-center gap-3 p-4 hover:bg-dark/50 cursor-pointer transition-colors border-b border-dark-border last:border-0"
+          >
             <item.icon size={18} className={item.color} />
             <span className="flex-1 text-sm font-medium">{item.label}</span>
             <ChevronRight size={16} className="text-slate-500" />

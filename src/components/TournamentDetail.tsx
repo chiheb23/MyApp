@@ -1,6 +1,7 @@
-import { ArrowLeft, Trophy, MapPin, Calendar, Users, Play } from 'lucide-react';
-import { tournaments } from '../data';
-import type { BracketMatch } from '../types';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, Trophy, MapPin, Calendar, Users, Play, Loader2 } from 'lucide-react';
+import { tournamentService } from '../services/tournamentService';
+import { Tournament, BracketMatch } from '../types';
 
 interface TournamentDetailProps {
   tournamentId: string;
@@ -43,7 +44,36 @@ function BracketMatchCard({ match }: { match: BracketMatch }) {
 }
 
 export default function TournamentDetail({ tournamentId, onNavigate }: TournamentDetailProps) {
-  const tournament = tournaments.find(t => t.id === tournamentId) || tournaments[0];
+  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!tournamentId) return;
+    tournamentService.getTournamentById(tournamentId).then(data => {
+      setTournament(data);
+      setLoading(false);
+    });
+  }, [tournamentId]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 className="animate-spin text-emerald-500" size={40} />
+      </div>
+    );
+  }
+
+  if (!tournament) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-20 text-center">
+        <p className="text-xl text-slate-400">Tournoi non trouvé.</p>
+        <button onClick={() => onNavigate('tournaments')} className="mt-4 btn-primary px-6 py-2 rounded-xl text-white">
+          Retour aux tournois
+        </button>
+      </div>
+    );
+  }
+
   const rounds = Math.max(...tournament.bracket.map(b => b.round), 0);
   const roundNames = ['', 'Quarts de finale', 'Demi-finales', 'Finale'];
 

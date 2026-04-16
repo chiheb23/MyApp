@@ -1,17 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MapPin, Clock, Users, Search, SlidersHorizontal } from 'lucide-react';
-import { matches } from '../data';
+import { matchService } from '../services/matchService';
+import { Match } from '../types';
 
 interface MatchesProps {
   onNavigate: (page: string, id?: string) => void;
 }
 
 export default function Matches({ onNavigate }: MatchesProps) {
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [cityFilter, setCityFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = matchService.subscribeToMatches((allMatches) => {
+      setMatches(allMatches);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const cities = ['all', ...new Set(matches.map(m => m.placeCity))];
   const types = ['all', '5v5', '7v7', '11v11'];
@@ -115,8 +126,13 @@ export default function Matches({ onNavigate }: MatchesProps) {
       </div>
 
       {/* Match Grid */}
-      <div className="grid md:grid-cols-2 gap-4">
-        {filtered.map(match => (
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+        </div>
+      ) : (
+        <div className="grid md:grid-cols-2 gap-4">
+          {filtered.map(match => (
           <div
             key={match.id}
             onClick={() => onNavigate('match-detail', match.id)}
@@ -185,10 +201,11 @@ export default function Matches({ onNavigate }: MatchesProps) {
               </div>
             </div>
           </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {filtered.length === 0 && (
+      {!loading && filtered.length === 0 && (
         <div className="text-center py-16">
           <p className="text-4xl mb-4">🔍</p>
           <p className="text-lg font-semibold">Aucun match trouvé</p>

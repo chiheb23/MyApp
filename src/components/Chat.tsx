@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Send, ArrowLeft, Users, Search, Phone, MoreVertical } from 'lucide-react';
-import { chatRooms, chatMessages, currentUser } from '../data';
+import { chatRooms, currentUser } from '../data';
+import { chatService } from '../services/chatService';
+import { Message } from '../types';
 
 interface ChatProps {
   onNavigate: (page: string) => void;
@@ -9,29 +11,44 @@ interface ChatProps {
 export default function Chat(_props: ChatProps) {
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState(chatMessages);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [search, setSearch] = useState('');
 
+  useEffect(() => {
+    if (!selectedRoom) {
+      setMessages([]);
+      return;
+    }
+
+    const unsubscribe = chatService.subscribeToMessages(selectedRoom, (newMessages) => {
+      setMessages(newMessages);
+    });
+
+    return () => unsubscribe();
+  }, [selectedRoom]);
+
   const room = chatRooms.find(r => r.id === selectedRoom);
-  const roomMessages = messages.filter(m => m.roomId === selectedRoom);
+  const roomMessages = messages;
 
   const filteredRooms = chatRooms.filter(r =>
     r.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!message.trim() || !selectedRoom) return;
-    const newMsg = {
-      id: `msg-${Date.now()}`,
-      roomId: selectedRoom,
-      authorId: currentUser.id,
-      authorName: currentUser.name.split(' ')[0],
-      authorAvatar: currentUser.avatar,
-      text: message,
-      timestamp: new Date().toLocaleTimeString('fr-TN', { hour: '2-digit', minute: '2-digit' }),
+    
+    const author = {
+      id: currentUser.id,
+      name: currentUser.name.split(' ')[0],
+      avatar: currentUser.avatar
     };
-    setMessages([...messages, newMsg]);
-    setMessage('');
+
+    try {
+      await chatService.sendMessage(selectedRoom, author, message);
+      setMessage('');
+    } catch (error) {
+      console.error("Erreur lors de l'envoi du message:", error);
+    }
   };
 
   // Mobile: show room list or chat
