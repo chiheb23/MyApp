@@ -1,0 +1,68 @@
+mutation CreateSeedData @transaction @auth(level: PUBLIC, insecureReason: "This is seed data and does not expose sensitive information.") {
+  user1: user_insert(data: {
+    id: "user-id-1",
+    username: "player1",
+    email: "player1@example.com",
+    passwordHash: "hashedpassword1",
+    createdAt: "2023-01-01T10:00:00Z",
+    displayName: "Alice Player",
+    userType: "player"
+  })
+  user2: user_insert(data: {
+    id: "user-id-2",
+    username: "owner1",
+    email: "owner1@example.com",
+    passwordHash: "hashedpassword2",
+    createdAt: "2023-01-01T10:05:00Z",
+    displayName: "Bob Owner",
+    userType: "pitch_owner"
+  })
+  pitch1: pitch_insert(data: {
+    id: "pitch-id-1",
+    ownerId: "user-id-2",
+    name: "Grassfield Court",
+    location: "123 Sports Ave",
+    surfaceType: "Grass",
+    hourlyRate: 50.0,
+    createdAt: "2023-01-02T11:00:00Z",
+    description: "A well-maintained grass pitch.",
+    amenities: ["parking", "changing rooms"],
+    imageUrl: "https://example.com/grassfield.jpg"
+  })
+  slot1: availabilitySlot_insert(data: {
+    id: "slot-id-1",
+    pitchId: "pitch-id-1",
+    startTime: "2023-07-15T14:00:00Z",
+    endTime: "2023-07-15T15:00:00Z",
+    date: "2023-07-15",
+    isBooked: false,
+    priceOverride: null
+  })
+  slot2: availabilitySlot_insert(data: {
+    id: "slot-id-2",
+    pitchId: "pitch-id-1",
+    startTime: "2023-07-16T10:00:00Z",
+    endTime: "2023-07-16T11:00:00Z",
+    date: "2023-07-16",
+    isBooked: true,
+    priceOverride: 60.0
+  })
+  reservation1: reservation_insert(data: {
+    id: "reservation-id-1",
+    userId: "user-id-1",
+    pitchId: "pitch-id-1",
+    availabilitySlotId: "slot-id-2",
+    bookingTime: "2023-07-10T09:00:00Z",
+    totalPrice: 60.0,
+    status: "CONFIRMED",
+    notes: "Regular booking by Alice"
+  })
+  review1: review_insert(data: {
+    id: "review-id-1",
+    userId: "user-id-1",
+    pitchId: "pitch-id-1",
+    rating: 5,
+    createdAt: "2023-07-16T12:00:00Z",
+    comment: "Great pitch, highly recommend!"
+  })
+}

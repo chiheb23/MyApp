@@ -1,0 +1,48 @@
+type User @table {
+  username: String!
+  email: String!
+  passwordHash: String!
+  createdAt: Timestamp!
+  phoneNumber: String
+  displayName: String
+  userType: String
+}
+
+type Pitch @table {
+  owner: User
+  name: String!
+  location: String!
+  surfaceType: String!
+  hourlyRate: Float!
+  createdAt: Timestamp!
+  description: String
+  amenities: [String]
+  imageUrl: String
+}
+
+type AvailabilitySlot @table {
+  pitch: Pitch
+  startTime: Timestamp!
+  endTime: Timestamp!
+  date: Date!
+  isBooked: Boolean!
+  priceOverride: Float
+}
+
+type Reservation @table {
+  user: User
+  pitch: Pitch
+  availabilitySlot: AvailabilitySlot
+  bookingTime: Timestamp!
+  totalPrice: Float!
+  status: String!
+  notes: String
+}
+
+type Review @table {
+  user: User
+  pitch: Pitch
+  rating: Int!
+  createdAt: Timestamp!
+  comment: String
+}

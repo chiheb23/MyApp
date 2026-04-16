@@ -12,6 +12,7 @@ import Profile from './components/Profile';
 import Chat from './components/Chat';
 import Admin from './components/Admin';
 import { useAuth } from './hooks/useAuth';
+import DataSeeder from './components/DataSeeder';
 
 // Composant pour faire défiler vers le haut lors du changement de route
 function ScrollToTop() {
@@ -46,6 +47,9 @@ export default function App() {
           {/* Route Landing sans Navbar */}
           <Route path="/" element={<Landing onNavigate={(page) => window.location.href = `/${page}`} />} />
           
+          {/* Route Seeder */}
+          <Route path="/seed" element={<DataSeeder />} />
+
           {/* Routes avec Navbar */}
           <Route path="/*" element={<MainLayout />} />
         </Routes>

@@ -1,0 +1,53 @@
+query ListPitches @auth(level: PUBLIC, insecureReason: "This operation is safe to expose to the public as it only lists pitch details.") {
+  pitches {
+    id
+    name
+    location
+    surfaceType
+    hourlyRate
+    imageUrl
+  }
+}
+
+mutation CreateReservation($pitchId: UUID!, $availabilitySlotId: UUID!, $totalPrice: Float!) @auth(level: USER, insecureReason: "This operation requires a logged-in user to create a reservation, and auth.uid is not directly used in the mutation data itself, but the user context is implicitly required.") {
+  reservation_insert(data: {
+    pitchId: $pitchId,
+    availabilitySlotId: $availabilitySlotId,
+    totalPrice: $totalPrice,
+    bookingTime_expr: "request.time",
+    status: "PENDING",
+    userId_expr: "auth.uid"
+  }) {
+    id
+  }
+}
+
+query MyReservations @auth(level: USER) {
+  reservations(where: {userId: {eq_expr: "auth.uid"}}) {
+    id
+    bookingTime
+    status
+    totalPrice
+    pitch {
+      name
+      location
+    }
+    availabilitySlot {
+      startTime
+      endTime
+      date
+    }
+  }
+}
+
+mutation AddPitchReview($pitchId: UUID!, $rating: Int!, $comment: String) @auth(level: USER, insecureReason: "This operation requires a logged-in user to add a review, and auth.uid is not directly used in the mutation data itself, but the user context is implicitly required.") {
+  review_insert(data: {
+    pitchId: $pitchId,
+    rating: $rating,
+    comment: $comment,
+    createdAt_expr: "request.time",
+    userId_expr: "auth.uid"
+  }) {
+    id
+  }
+}
