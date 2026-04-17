@@ -1,6 +1,7 @@
 import { MapPin, Clock, Users, ChevronRight, Trophy, TrendingUp, Calendar, Bell } from 'lucide-react';
 import { tournaments, notifications, currentUser } from '../data';
 import { matchService } from '../services/matchService';
+import InitDataButton from './InitDataButton';
 import { Match } from '../types';
 import { useState, useEffect } from 'react';
 
@@ -38,6 +39,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <InitDataButton />
       {/* Welcome */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

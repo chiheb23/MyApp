@@ -9,7 +9,11 @@ query ListPitches @auth(level: PUBLIC, insecureReason: "This operation is safe t
   }
 }
 
-mutation CreateReservation($pitchId: UUID!, $availabilitySlotId: UUID!, $totalPrice: Float!) @auth(level: USER, insecureReason: "This operation requires a logged-in user to create a reservation, and auth.uid is not directly used in the mutation data itself, but the user context is implicitly required.") {
+mutation CreateReservation(
+  $pitchId: UUID!,
+  $availabilitySlotId: UUID!,
+  $totalPrice: Float!
+) @auth(level: USER, insecureReason: "Requires logged-in user context.") {
   reservation_insert(data: {
     pitchId: $pitchId,
     availabilitySlotId: $availabilitySlotId,
@@ -17,9 +21,7 @@ mutation CreateReservation($pitchId: UUID!, $availabilitySlotId: UUID!, $totalPr
     bookingTime_expr: "request.time",
     status: "PENDING",
     userId_expr: "auth.uid"
-  }) {
-    id
-  }
+  })
 }
 
 query MyReservations @auth(level: USER) {
@@ -40,14 +42,16 @@ query MyReservations @auth(level: USER) {
   }
 }
 
-mutation AddPitchReview($pitchId: UUID!, $rating: Int!, $comment: String) @auth(level: USER, insecureReason: "This operation requires a logged-in user to add a review, and auth.uid is not directly used in the mutation data itself, but the user context is implicitly required.") {
+mutation AddPitchReview(
+  $pitchId: UUID!,
+  $rating: Int!,
+  $comment: String
+) @auth(level: USER, insecureReason: "Requires logged-in user context.") {
   review_insert(data: {
     pitchId: $pitchId,
     rating: $rating,
     comment: $comment,
     createdAt_expr: "request.time",
     userId_expr: "auth.uid"
-  }) {
-    id
-  }
+  })
 }

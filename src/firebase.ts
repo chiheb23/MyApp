@@ -3,15 +3,17 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-// Configuration Firebase (à remplacer par vos propres clés de la console Firebase)
+// Configuration Firebase récupérée depuis la capture d'écran de l'utilisateur
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+
+  apiKey: "AIzaSyBvpqPvSE-cSA2cGHV0mi1tc90e29iDyR8",
+  authDomain: "football-1a271.firebaseapp.com",
+  projectId: "football-1a271",
+  storageBucket: "football-1a271.firebasestorage.app",
+  messagingSenderId: "605161827570",
+  appId: "1:605161827570:web:1e38823223861b86bb746b",
+  measurementId: "G-JN7FL4FGV7"
+
 };
 
 // Initialisation de Firebase
