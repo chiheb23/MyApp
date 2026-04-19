@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
-import { Send, ArrowLeft, Users, Search, Phone, MoreVertical } from 'lucide-react';
-import { chatRooms, currentUser } from '../data';
+import { useState, useEffect, useRef } from 'react';
+import { Send, ArrowLeft, Users, Search, Phone, MoreVertical, Loader2 } from 'lucide-react';
+import { chatRooms } from '../data';
 import { chatService } from '../services/chatService';
+import { useAuth } from '../hooks/useAuth';
 import { Message } from '../types';
 
 interface ChatProps {
@@ -9,10 +10,18 @@ interface ChatProps {
 }
 
 export default function Chat(_props: ChatProps) {
+  const { firebaseUser, userProfile } = useAuth();
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [search, setSearch] = useState('');
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Scroll automatique vers le bas quand de nouveaux messages arrivent
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   useEffect(() => {
     if (!selectedRoom) {
@@ -28,37 +37,43 @@ export default function Chat(_props: ChatProps) {
   }, [selectedRoom]);
 
   const room = chatRooms.find(r => r.id === selectedRoom);
-  const roomMessages = messages;
 
   const filteredRooms = chatRooms.filter(r =>
     r.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const sendMessage = async () => {
-    if (!message.trim() || !selectedRoom) return;
-    
-    const author = {
-      id: currentUser.id,
-      name: currentUser.name.split(' ')[0],
-      avatar: currentUser.avatar
-    };
+  // Identité de l'expéditeur : utilisateur Firebase connecté, sinon fallback
+  const senderId = firebaseUser?.uid || 'guest-user';
+  const senderName = userProfile?.name || firebaseUser?.displayName || 'Invité';
+  const senderAvatar = userProfile?.avatar || '👤';
 
+  const sendMessage = async () => {
+    if (!message.trim() || !selectedRoom || sending) return;
+
+    setSending(true);
     try {
-      await chatService.sendMessage(selectedRoom, author, message);
+      await chatService.sendMessage(
+        selectedRoom,
+        { id: senderId, name: senderName.split(' ')[0], avatar: senderAvatar },
+        message
+      );
       setMessage('');
     } catch (error) {
       console.error("Erreur lors de l'envoi du message:", error);
+      alert("Impossible d'envoyer le message. Vérifiez votre connexion.");
+    } finally {
+      setSending(false);
     }
   };
 
-  // Mobile: show room list or chat
   const showChat = selectedRoom !== null;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       <div className="glass rounded-2xl overflow-hidden" style={{ height: 'calc(100vh - 140px)' }}>
         <div className="flex h-full">
-          {/* Room List */}
+
+          {/* ── Room List ── */}
           <div className={`${showChat ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-80 border-r border-dark-border`}>
             <div className="p-4 border-b border-dark-border">
               <h2 className="text-lg font-bold mb-3">Messages 💬</h2>
@@ -75,40 +90,42 @@ export default function Chat(_props: ChatProps) {
             </div>
 
             <div className="flex-1 overflow-y-auto">
-              {filteredRooms.map(room => (
+              {filteredRooms.length === 0 ? (
+                <p className="text-center text-slate-500 text-sm p-6">Aucune conversation trouvée.</p>
+              ) : filteredRooms.map(r => (
                 <div
-                  key={room.id}
-                  onClick={() => setSelectedRoom(room.id)}
+                  key={r.id}
+                  onClick={() => setSelectedRoom(r.id)}
                   className={`flex items-center gap-3 p-4 cursor-pointer transition-colors ${
-                    selectedRoom === room.id ? 'bg-emerald-500/10' : 'hover:bg-dark/50'
+                    selectedRoom === r.id ? 'bg-emerald-500/10' : 'hover:bg-dark/50'
                   }`}
                 >
                   <div className="w-12 h-12 rounded-full bg-dark-lighter flex items-center justify-center text-xl shrink-0">
-                    {room.avatar}
+                    {r.avatar}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <p className="font-semibold text-sm truncate">{room.name}</p>
-                      <span className="text-xs text-slate-500 shrink-0 ml-2">{room.lastMessageTime}</span>
+                      <p className="font-semibold text-sm truncate">{r.name}</p>
+                      <span className="text-xs text-slate-500 shrink-0 ml-2">{r.lastMessageTime}</span>
                     </div>
                     <div className="flex items-center justify-between mt-0.5">
-                      <p className="text-xs text-slate-400 truncate">{room.lastMessage}</p>
-                      {room.unreadCount > 0 && (
+                      <p className="text-xs text-slate-400 truncate">{r.lastMessage}</p>
+                      {r.unreadCount > 0 && (
                         <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center shrink-0 ml-2">
-                          {room.unreadCount}
+                          {r.unreadCount}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1 mt-1">
                       <Users size={10} className="text-slate-500" />
-                      <span className="text-[10px] text-slate-500">{room.members} membres</span>
+                      <span className="text-[10px] text-slate-500">{r.members} membres</span>
                       <span className="text-[10px] text-slate-500 ml-1">•</span>
                       <span className={`text-[10px] px-1.5 rounded ${
-                        room.type === 'match' ? 'bg-emerald-500/10 text-emerald-400' :
-                        room.type === 'tournament' ? 'bg-amber-500/10 text-amber-400' :
-                        'bg-blue-500/10 text-blue-400'
+                        r.type === 'match'      ? 'bg-emerald-500/10 text-emerald-400' :
+                        r.type === 'tournament' ? 'bg-amber-500/10 text-amber-400'    :
+                                                  'bg-blue-500/10 text-blue-400'
                       }`}>
-                        {room.type === 'match' ? 'Match' : room.type === 'tournament' ? 'Tournoi' : 'Groupe'}
+                        {r.type === 'match' ? 'Match' : r.type === 'tournament' ? 'Tournoi' : 'Groupe'}
                       </span>
                     </div>
                   </div>
@@ -117,11 +134,11 @@ export default function Chat(_props: ChatProps) {
             </div>
           </div>
 
-          {/* Chat area */}
+          {/* ── Chat Area ── */}
           <div className={`${showChat ? 'flex' : 'hidden md:flex'} flex-col flex-1`}>
             {selectedRoom && room ? (
               <>
-                {/* Chat header */}
+                {/* Header */}
                 <div className="flex items-center gap-3 p-4 border-b border-dark-border">
                   <button onClick={() => setSelectedRoom(null)} className="md:hidden text-slate-400 hover:text-white">
                     <ArrowLeft size={20} />
@@ -139,37 +156,47 @@ export default function Chat(_props: ChatProps) {
                   </div>
                 </div>
 
-                {/* Messages */}
+                {/* Messages list */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {roomMessages.map(msg => (
-                    <div key={msg.id}>
-                      {msg.isSystem ? (
-                        <div className="text-center">
-                          <span className="px-3 py-1 rounded-full bg-dark-lighter text-xs text-slate-400">
-                            {msg.text}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className={`flex gap-3 ${msg.authorId === currentUser.id ? 'flex-row-reverse' : ''}`}>
-                          <div className="w-8 h-8 rounded-full bg-dark-lighter flex items-center justify-center text-sm shrink-0">
-                            {msg.authorAvatar}
-                          </div>
-                          <div className={`max-w-[70%] ${msg.authorId === currentUser.id ? 'text-right' : ''}`}>
-                            <p className="text-xs text-slate-400 mb-1">
-                              {msg.authorName} · {msg.timestamp}
-                            </p>
-                            <div className={`px-4 py-2.5 rounded-2xl text-sm ${
-                              msg.authorId === currentUser.id
-                                ? 'bg-emerald-500 text-white rounded-tr-sm'
-                                : 'bg-dark-lighter text-slate-200 rounded-tl-sm'
-                            }`}>
+                  {messages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center text-slate-400">
+                      <p className="text-4xl mb-3">💬</p>
+                      <p className="text-sm font-medium">Aucun message encore.</p>
+                      <p className="text-xs mt-1">Soyez le premier à écrire !</p>
+                    </div>
+                  ) : (
+                    messages.map(msg => (
+                      <div key={msg.id}>
+                        {msg.isSystem ? (
+                          <div className="text-center">
+                            <span className="px-3 py-1 rounded-full bg-dark-lighter text-xs text-slate-400">
                               {msg.text}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className={`flex gap-3 ${msg.authorId === senderId ? 'flex-row-reverse' : ''}`}>
+                            <div className="w-8 h-8 rounded-full bg-dark-lighter flex items-center justify-center text-sm shrink-0">
+                              {msg.authorAvatar}
+                            </div>
+                            <div className={`max-w-[70%] ${msg.authorId === senderId ? 'text-right' : ''}`}>
+                              <p className="text-xs text-slate-400 mb-1">
+                                {msg.authorName} · {msg.timestamp}
+                              </p>
+                              <div className={`px-4 py-2.5 rounded-2xl text-sm ${
+                                msg.authorId === senderId
+                                  ? 'bg-emerald-500 text-white rounded-tr-sm'
+                                  : 'bg-dark-lighter text-slate-200 rounded-tl-sm'
+                              }`}>
+                                {msg.text}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        )}
+                      </div>
+                    ))
+                  )}
+                  {/* Ancre scroll automatique */}
+                  <div ref={messagesEndRef} />
                 </div>
 
                 {/* Input */}
@@ -179,16 +206,19 @@ export default function Chat(_props: ChatProps) {
                       type="text"
                       value={message}
                       onChange={e => setMessage(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && sendMessage()}
+                      onKeyDown={e => e.key === 'Enter' && !sending && sendMessage()}
                       placeholder="Écris un message..."
                       className="flex-1 px-4 py-3 rounded-xl bg-dark text-white placeholder-slate-500 outline-none focus:ring-1 focus:ring-emerald-500/50"
                     />
                     <button
                       onClick={sendMessage}
-                      disabled={!message.trim()}
+                      disabled={!message.trim() || sending}
                       className="p-3 rounded-xl btn-primary text-white disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <Send size={18} />
+                      {sending
+                        ? <Loader2 size={18} className="animate-spin" />
+                        : <Send size={18} />
+                      }
                     </button>
                   </div>
                 </div>
@@ -203,6 +233,7 @@ export default function Chat(_props: ChatProps) {
               </div>
             )}
           </div>
+
         </div>
       </div>
     </div>

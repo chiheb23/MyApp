@@ -2,7 +2,7 @@ importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js')
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: "AIzaSyBvpqPvSE-cSA2cGHV0mi1tc90e29iDyR8",
+  apiKey: "AIzaSyBvpqPvSE-cSA2cGHVOmi1tc90e29iDyR8",
   authDomain: "football-1a271.firebaseapp.com",
   projectId: "football-1a271",
   storageBucket: "football-1a271.firebasestorage.app",

@@ -4,9 +4,9 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getMessaging } from "firebase/messaging";
 
-// Configuration Firebase récupérée depuis la capture d'écran de l'utilisateur
+// Configuration Firebase explicite (nécessaire pour le plugin singlefile)
 const firebaseConfig = {
-  apiKey: "AIzaSyBvpqPvSE-cSA2cGHV0mi1tc90e29iDyR8",
+  apiKey: "AIzaSyBvpqPvSE-cSA2cGHVOmi1tc90e29iDyR8",
   authDomain: "football-1a271.firebaseapp.com",
   projectId: "football-1a271",
   storageBucket: "football-1a271.firebasestorage.app",

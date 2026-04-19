@@ -24,7 +24,7 @@ export const notificationService = {
       const permission = await Notification.requestPermission();
       if (permission === "granted") {
         const token = await getToken(messaging, {
-          vapidKey: "VOTRE_VAPID_KEY_DE_LA_CONSOLE_FIREBASE" // À remplacer par l'utilisateur
+          vapidKey: "BMZKngLn1qrz0ArIMYd-mp1ueeQlfyJyrG3o0ebp84FP6crMNYzNGXV0_ZjLuV__G7pFZ2iYTxu_hhnT-inYIgs"
         });
         
         if (token) {

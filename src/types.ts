@@ -3,6 +3,7 @@ export type Page = 'landing' | 'dashboard' | 'matches' | 'match-detail' | 'creat
 export interface User {
   id: string;
   name: string;
+  email?: string;
   avatar: string;
   phone: string;
   city: string;

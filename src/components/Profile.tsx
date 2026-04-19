@@ -90,7 +90,7 @@ export default function Profile(_props: ProfileProps) {
           <div className="flex flex-col sm:flex-row items-center gap-6">
             <div className="relative">
               <div className="w-24 h-24 rounded-full bg-dark-lighter flex items-center justify-center text-5xl border-4 border-emerald-500/30">
-                {currentUser.avatar}
+                {user.avatar}
               </div>
               <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
                 <Edit size={14} className="text-white" />
@@ -165,9 +165,9 @@ export default function Profile(_props: ProfileProps) {
                 <Star
                   key={i}
                   size={20}
-                  className={i < Math.floor(currentUser.rating)
+                  className={i < Math.floor(user.rating)
                     ? 'text-amber-400 fill-amber-400'
-                    : i < currentUser.rating
+                    : i < user.rating
                     ? 'text-amber-400 fill-amber-400/50'
                     : 'text-dark-border'}
                 />

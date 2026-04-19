@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import {
   MapPin, Users, Trophy, MessageCircle, Shield, Zap, ChevronRight,
-  Star, Clock, CreditCard, Smartphone, Globe, ArrowRight, Play
+  Star, Clock, CreditCard, Smartphone, Globe, ArrowRight, Play,
+  X, Mail, Lock, User, Eye, EyeOff, Loader2, CheckCircle2
 } from 'lucide-react';
+import { authService } from '../services/authService';
+import { userService } from '../services/userService';
 
 interface LandingProps {
   onNavigate: (page: string) => void;
@@ -23,7 +26,228 @@ function AnimatedCounter({ end, duration = 2000, suffix = '' }: { end: number; d
   return <span>{count.toLocaleString()}{suffix}</span>;
 }
 
+// ── Auth Modal ──────────────────────────────────────────────────────────────
+function AuthModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+  const [tab, setTab] = useState<'login' | 'register'>('login');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const [form, setForm] = useState({
+    name: '', email: '', password: '', city: '', position: 'Milieu', level: 'Débutant'
+  });
+
+  const handleLogin = async () => {
+    if (!form.email || !form.password) { setError('Remplis tous les champs.'); return; }
+    setLoading(true); setError('');
+    try {
+      await authService.login(form.email, form.password);
+      setSuccess(true);
+      setTimeout(onSuccess, 800);
+    } catch (e: any) {
+      setError(e.code === 'auth/invalid-credential' ? 'Email ou mot de passe incorrect.' : e.message);
+    } finally { setLoading(false); }
+  };
+
+  const handleRegister = async () => {
+    if (!form.name || !form.email || !form.password) { setError('Remplis tous les champs obligatoires.'); return; }
+    if (form.password.length < 6) { setError('Le mot de passe doit contenir au moins 6 caractères.'); return; }
+    setLoading(true); setError('');
+    try {
+      const fbUser = await authService.signUp(form.email, form.password);
+      // Créer le profil Firestore
+      await userService.saveUserProfile(fbUser.uid, {
+        name: form.name,
+        email: form.email,
+        avatar: '👤',
+        city: form.city || 'Tunisie',
+        level: form.level as any,
+        position: form.position,
+        rating: 0,
+        matchesPlayed: 0,
+        goals: 0,
+        assists: 0,
+        phone: '',
+        joined: new Date().toISOString().split('T')[0],
+      });
+      setSuccess(true);
+      setTimeout(onSuccess, 800);
+    } catch (e: any) {
+      if (e.code === 'auth/email-already-in-use') setError('Cet email est déjà utilisé.');
+      else if (e.code === 'auth/weak-password') setError('Mot de passe trop faible (6 caractères min).');
+      else setError(e.message);
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div
+        className="relative glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-dark-border animate-slide-up"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Close */}
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors">
+          <X size={20} />
+        </button>
+
+        {/* Logo */}
+        <div className="text-center mb-6">
+          <h2 className="text-2xl font-bold gradient-text">KooraTime</h2>
+          <p className="text-slate-400 text-sm mt-1">
+            {tab === 'login' ? 'Bon retour sur le terrain ⚽' : 'Rejoins la communauté 🚀'}
+          </p>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex rounded-xl bg-dark p-1 mb-6">
+          {(['login', 'register'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => { setTab(t); setError(''); }}
+              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                tab === t ? 'bg-emerald-500 text-white shadow' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {t === 'login' ? 'Connexion' : 'Inscription'}
+            </button>
+          ))}
+        </div>
+
+        {/* Success state */}
+        {success ? (
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <CheckCircle2 size={48} className="text-emerald-400" />
+            <p className="font-semibold text-lg">
+              {tab === 'login' ? 'Connecté !' : 'Compte créé !'}
+            </p>
+            <p className="text-slate-400 text-sm">Redirection en cours...</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+
+            {/* Name (register only) */}
+            {tab === 'register' && (
+              <div className="relative">
+                <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Prénom et Nom *"
+                  value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-dark text-white border border-dark-border outline-none focus:ring-2 focus:ring-emerald-500/50 placeholder-slate-500 text-sm"
+                />
+              </div>
+            )}
+
+            {/* Email */}
+            <div className="relative">
+              <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="email"
+                placeholder="Email *"
+                value={form.email}
+                onChange={e => setForm({ ...form, email: e.target.value })}
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-dark text-white border border-dark-border outline-none focus:ring-2 focus:ring-emerald-500/50 placeholder-slate-500 text-sm"
+              />
+            </div>
+
+            {/* Password */}
+            <div className="relative">
+              <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type={showPass ? 'text' : 'password'}
+                placeholder="Mot de passe * (min. 6 caractères)"
+                value={form.password}
+                onChange={e => setForm({ ...form, password: e.target.value })}
+                onKeyDown={e => e.key === 'Enter' && (tab === 'login' ? handleLogin() : handleRegister())}
+                className="w-full pl-10 pr-10 py-3 rounded-xl bg-dark text-white border border-dark-border outline-none focus:ring-2 focus:ring-emerald-500/50 placeholder-slate-500 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass(!showPass)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+              >
+                {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+
+            {/* Register extra fields */}
+            {tab === 'register' && (
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  placeholder="Ville (ex: Tunis)"
+                  value={form.city}
+                  onChange={e => setForm({ ...form, city: e.target.value })}
+                  className="px-3 py-2.5 rounded-xl bg-dark text-white border border-dark-border outline-none focus:ring-2 focus:ring-emerald-500/50 placeholder-slate-500 text-sm"
+                />
+                <select
+                  value={form.position}
+                  onChange={e => setForm({ ...form, position: e.target.value })}
+                  className="px-3 py-2.5 rounded-xl bg-dark text-white border border-dark-border outline-none focus:ring-2 focus:ring-emerald-500/50 text-sm"
+                >
+                  {['Gardien', 'Défenseur', 'Milieu', 'Attaquant'].map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+                <select
+                  value={form.level}
+                  onChange={e => setForm({ ...form, level: e.target.value })}
+                  className="col-span-2 px-3 py-2.5 rounded-xl bg-dark text-white border border-dark-border outline-none focus:ring-2 focus:ring-emerald-500/50 text-sm"
+                >
+                  {['Débutant', 'Intermédiaire', 'Avancé', 'Pro'].map(l => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Error */}
+            {error && (
+              <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                ⚠️ {error}
+              </p>
+            )}
+
+            {/* Submit */}
+            <button
+              onClick={tab === 'login' ? handleLogin : handleRegister}
+              disabled={loading}
+              className="w-full py-3 rounded-xl btn-primary text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {loading && <Loader2 size={18} className="animate-spin" />}
+              {tab === 'login' ? 'Se connecter' : 'Créer mon compte'}
+            </button>
+
+            {/* Switch tab */}
+            <p className="text-center text-sm text-slate-400">
+              {tab === 'login' ? "Pas encore de compte ? " : "Déjà un compte ? "}
+              <button
+                onClick={() => { setTab(tab === 'login' ? 'register' : 'login'); setError(''); }}
+                className="text-emerald-400 hover:text-emerald-300 font-semibold"
+              >
+                {tab === 'login' ? "S'inscrire" : 'Se connecter'}
+              </button>
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Landing Page ────────────────────────────────────────────────────────────
 export default function Landing({ onNavigate }: LandingProps) {
+  const [showAuth, setShowAuth] = useState(false);
+  const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
+
+  const openAuth = (tab: 'login' | 'register' = 'login') => {
+    setAuthTab(tab);
+    setShowAuth(true);
+  };
+
   const features = [
     { icon: MapPin, title: 'Matchs Géolocalisés', desc: 'Trouve des matchs près de chez toi en temps réel grâce au GPS', color: 'text-emerald-400' },
     { icon: CreditCard, title: 'Paiement Intégré', desc: 'Réserve ton terrain et paie ta place directement dans l\'app', color: 'text-amber-400' },
@@ -48,8 +272,37 @@ export default function Landing({ onNavigate }: LandingProps) {
 
   return (
     <div className="min-h-screen">
+
+      {/* Auth Modal */}
+      {showAuth && (
+        <AuthModal
+          onClose={() => setShowAuth(false)}
+          onSuccess={() => {
+            setShowAuth(false);
+            onNavigate('dashboard');
+          }}
+        />
+      )}
+
+      {/* Sticky top bar avec boutons auth */}
+      <div className="fixed top-0 left-0 right-0 z-40 flex justify-end items-center gap-3 px-6 py-3 glass border-b border-dark-border/30">
+        <span className="text-sm text-emerald-400 font-semibold mr-auto gradient-text text-lg">KooraTime</span>
+        <button
+          onClick={() => openAuth('login')}
+          className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-300 hover:text-white transition-colors glass"
+        >
+          Connexion
+        </button>
+        <button
+          onClick={() => openAuth('register')}
+          className="px-4 py-2 rounded-lg text-sm font-semibold btn-primary text-white"
+        >
+          S'inscrire
+        </button>
+      </div>
+
       {/* Hero */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden pitch-pattern">
+      <section className="relative min-h-screen flex items-center justify-center overflow-hidden pitch-pattern pt-16">
         <div className="absolute inset-0 bg-grid opacity-30" />
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl animate-float" />
         <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '3s' }} />
@@ -71,11 +324,17 @@ export default function Landing({ onNavigate }: LandingProps) {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-up delay-400">
-            <button onClick={() => onNavigate('dashboard')} className="btn-primary px-8 py-4 rounded-xl text-white font-semibold text-lg flex items-center gap-2 justify-center">
-              Explorer l'App <ArrowRight size={20} />
+            <button
+              onClick={() => openAuth('register')}
+              className="btn-primary px-8 py-4 rounded-xl text-white font-semibold text-lg flex items-center gap-2 justify-center"
+            >
+              Commencer gratuitement <ArrowRight size={20} />
             </button>
-            <button onClick={() => onNavigate('matches')} className="px-8 py-4 rounded-xl glass text-white font-semibold text-lg flex items-center gap-2 justify-center hover:bg-white/10 transition-all">
-              <Play size={20} /> Voir les Matchs
+            <button
+              onClick={() => onNavigate('dashboard')}
+              className="px-8 py-4 rounded-xl glass text-white font-semibold text-lg flex items-center gap-2 justify-center hover:bg-white/10 transition-all"
+            >
+              <Play size={20} /> Explorer l'App
             </button>
           </div>
 
@@ -150,7 +409,7 @@ export default function Landing({ onNavigate }: LandingProps) {
         </div>
       </section>
 
-      {/* Phone mockup / app preview */}
+      {/* Phone mockup */}
       <section className="py-24 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -179,7 +438,6 @@ export default function Landing({ onNavigate }: LandingProps) {
               </div>
             </div>
 
-            {/* Phone Mockup */}
             <div className="flex justify-center">
               <div className="relative">
                 <div className="w-72 h-[580px] rounded-[3rem] bg-dark-card border-4 border-dark-border shadow-2xl overflow-hidden relative">
@@ -265,7 +523,7 @@ export default function Landing({ onNavigate }: LandingProps) {
         </div>
       </section>
 
-      {/* Tech Stack (transparent about architecture) */}
+      {/* Tech Stack */}
       <section className="py-24 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
@@ -304,8 +562,17 @@ export default function Landing({ onNavigate }: LandingProps) {
               <h2 className="text-3xl md:text-5xl font-bold mb-4">Prêt à jouer ? ⚽</h2>
               <p className="text-slate-400 max-w-xl mx-auto mb-8">Rejoins des milliers de joueurs en Tunisie et organise ton prochain match en quelques secondes</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button onClick={() => onNavigate('dashboard')} className="btn-primary px-8 py-4 rounded-xl text-white font-semibold text-lg flex items-center gap-2 justify-center">
-                  Commencer Maintenant <ArrowRight size={20} />
+                <button
+                  onClick={() => openAuth('register')}
+                  className="btn-primary px-8 py-4 rounded-xl text-white font-semibold text-lg flex items-center gap-2 justify-center"
+                >
+                  Créer un compte gratuit <ArrowRight size={20} />
+                </button>
+                <button
+                  onClick={() => openAuth('login')}
+                  className="glass px-8 py-4 rounded-xl text-white font-semibold text-lg flex items-center gap-2 justify-center hover:bg-white/10 transition-all"
+                >
+                  Se connecter
                 </button>
               </div>
             </div>
