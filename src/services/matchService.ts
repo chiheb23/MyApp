@@ -13,8 +13,22 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { Match } from "../types";
+import { notificationService } from "./notificationService";
 
 const MATCHES_COLLECTION = "matches";
+
+// Fonction utilitaire pour calculer la distance entre deux points (Haversine)
+export const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371; // Rayon de la Terre en km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
 
 export const matchService = {
   // Créer un match
@@ -76,6 +90,11 @@ export const matchService = {
           currentPlayers: updatedPlayers.length,
           status: updatedPlayers.length >= matchData.maxPlayers ? 'full' : 'open'
         });
+
+        // Notifier le créateur du match
+        if (matchData.ownerId !== player.userId) {
+          await notificationService.notifyMatchJoined(matchData.ownerId, player.name, matchData.title);
+        }
       }
     } catch (error) {
       throw error;

@@ -13,6 +13,7 @@ import Chat from './components/Chat';
 import Admin from './components/Admin';
 import { useAuth } from './hooks/useAuth';
 import DataSeeder from './components/DataSeeder';
+import { notificationService } from './services/notificationService';
 
 // Composant pour faire défiler vers le haut lors du changement de route
 function ScrollToTop() {
@@ -39,6 +40,18 @@ function PrivateRoute({ children }: { children: JSX.Element }) {
 }
 
 export default function App() {
+  const { firebaseUser } = useAuth();
+
+  useEffect(() => {
+    // Écouter les notifications au premier plan
+    notificationService.onForegroundMessage();
+    
+    // Demander la permission si l'utilisateur est connecté
+    if (firebaseUser) {
+      notificationService.requestPermission(firebaseUser.uid);
+    }
+  }, [firebaseUser]);
+
   return (
     <Router>
       <ScrollToTop />

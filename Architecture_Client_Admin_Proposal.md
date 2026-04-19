@@ -1,0 +1,1 @@
+Cette architecture fournit une base solide pour construire les interfaces Client et Admin, en assurant la sécurité, la scalabilité et une expérience utilisateur cohérente. Une fois validée, nous pourrons commencer l'implémentation progressive de ces fonctionnalités.

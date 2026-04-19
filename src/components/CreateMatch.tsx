@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ArrowLeft, MapPin, Calendar, Clock, CreditCard, Check, Info } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, MapPin, Calendar, Clock, CreditCard, Check, Info, Loader2 } from 'lucide-react';
 import { places, currentUser } from '../data';
 import { matchService } from '../services/matchService';
 import { Match } from '../types';
@@ -20,14 +20,92 @@ export default function CreateMatch({ onNavigate }: CreateMatchProps) {
     fee: 15,
     placeId: '',
     description: '',
+    lat: 36.8355, // Par défaut Tunis
+    lng: 10.1656,
   });
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [locating, setLocating] = useState(false);
 
   const maxPlayersMap: Record<string, number> = { '5v5': 10, '7v7': 14, '11v11': 22 };
 
+  // Récupérer la position de l'utilisateur au chargement
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      setLocating(true);
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setForm(prev => ({
+            ...prev,
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          }));
+          setLocating(false);
+        },
+        (error) => {
+          console.error("Erreur de géolocalisation:", error);
+          setLocating(false);
+        }
+      );
+    }
+  }, []);
+
   const handleTypeChange = (type: string) => {
     setForm({ ...form, type, maxPlayers: maxPlayersMap[type] });
+  };
+
+  const handlePlaceSelect = (place: any) => {
+    setForm({ 
+      ...form, 
+      placeId: place.id,
+      lat: place.lat,
+      lng: place.lng
+    });
+  };
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+      const selectedPlace = places.find(p => p.id === form.placeId);
+      const matchData: Omit<Match, 'id'> = {
+        title: form.title,
+        ownerId: currentUser.id,
+        ownerName: currentUser.name,
+        ownerAvatar: currentUser.avatar,
+        placeId: form.placeId,
+        placeName: selectedPlace?.name || '',
+        placeCity: selectedPlace?.city || '',
+        placeAddress: selectedPlace?.address || '',
+        lat: form.lat,
+        lng: form.lng,
+        datetime: `${form.date}T${form.time}:00`,
+        duration: form.duration,
+        maxPlayers: form.maxPlayers,
+        currentPlayers: 1,
+        fee: form.fee,
+        status: 'open',
+        type: form.type as any,
+        description: form.description,
+        players: [
+          {
+            userId: currentUser.id,
+            name: currentUser.name,
+            avatar: currentUser.avatar,
+            position: currentUser.position,
+            rating: currentUser.rating,
+            paid: false
+          }
+        ]
+      };
+
+      await matchService.createMatch(matchData);
+      setSubmitted(true);
+    } catch (error) {
+      console.error("Erreur lors de la création du match:", error);
+      alert("Erreur lors de la création du match. Veuillez réessayer.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -43,7 +121,7 @@ export default function CreateMatch({ onNavigate }: CreateMatchProps) {
             <button onClick={() => onNavigate('matches')} className="btn-primary px-6 py-3 rounded-xl text-white font-semibold">
               Voir mes matchs
             </button>
-            <button onClick={() => { setSubmitted(false); setStep(1); setForm({ title: '', type: '5v5', date: '', time: '', duration: 90, maxPlayers: 10, fee: 15, placeId: '', description: '' }); }} className="px-6 py-3 rounded-xl glass text-white font-semibold hover:bg-white/10 transition-colors">
+            <button onClick={() => { setSubmitted(false); setStep(1); }} className="px-6 py-3 rounded-xl glass text-white font-semibold hover:bg-white/10 transition-colors">
               Créer un autre
             </button>
           </div>
@@ -58,9 +136,16 @@ export default function CreateMatch({ onNavigate }: CreateMatchProps) {
         <ArrowLeft size={20} /> Retour
       </button>
 
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold">Créer un Match ⚽</h1>
-        <p className="text-slate-400 mt-1">Organise ton prochain match en quelques étapes</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold">Créer un Match ⚽</h1>
+          <p className="text-slate-400 mt-1">Organise ton prochain match en quelques étapes</p>
+        </div>
+        {locating && (
+          <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full">
+            <Loader2 size={12} className="animate-spin" /> Localisation...
+          </div>
+        )}
       </div>
 
       {/* Steps indicator */}
@@ -191,7 +276,7 @@ export default function CreateMatch({ onNavigate }: CreateMatchProps) {
               {places.map(place => (
                 <div
                   key={place.id}
-                  onClick={() => setForm({ ...form, placeId: place.id })}
+                  onClick={() => handlePlaceSelect(place)}
                   className={`p-4 rounded-xl cursor-pointer transition-all ${
                     form.placeId === place.id
                       ? 'bg-emerald-500/10 border-2 border-emerald-500'
@@ -251,28 +336,13 @@ export default function CreateMatch({ onNavigate }: CreateMatchProps) {
                 { label: 'Terrain', value: places.find(p => p.id === form.placeId)?.name || '—', icon: '🏟️' },
               ].map((item, i) => (
                 <div key={i} className="flex items-center justify-between py-2 border-b border-dark-border last:border-0">
-                  <span className="text-slate-400 flex items-center gap-2">
-                    <span>{item.icon}</span> {item.label}
-                  </span>
-                  <span className="font-medium">{item.value}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">{item.icon}</span>
+                    <span className="text-slate-400 text-sm">{item.label}</span>
+                  </div>
+                  <span className="font-semibold">{item.value}</span>
                 </div>
               ))}
-            </div>
-
-            {form.description && (
-              <div className="p-3 rounded-xl bg-dark/50">
-                <p className="text-xs text-slate-400 mb-1">Description</p>
-                <p className="text-sm">{form.description}</p>
-              </div>
-            )}
-
-            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
-              <div className="flex items-start gap-2">
-                <Info size={16} className="text-amber-400 mt-0.5 shrink-0" />
-                <p className="text-sm text-amber-300">
-                  Le coût de réservation du terrain ({places.find(p => p.id === form.placeId)?.pricePerHour} DT/h) sera réparti entre les joueurs inscrits.
-                </p>
-              </div>
             </div>
 
             <div className="flex gap-3">
@@ -280,54 +350,12 @@ export default function CreateMatch({ onNavigate }: CreateMatchProps) {
                 Retour
               </button>
               <button
-                onClick={async () => {
-                  setIsSubmitting(true);
-                  const selectedPlace = places.find(p => p.id === form.placeId);
-                  if (!selectedPlace) return;
-
-                  const newMatch: Omit<Match, 'id'> = {
-                    title: form.title,
-                    ownerId: currentUser.id,
-                    ownerName: currentUser.name,
-                    ownerAvatar: currentUser.avatar,
-                    placeId: selectedPlace.id,
-                    placeName: selectedPlace.name,
-                    placeCity: selectedPlace.city,
-                    placeAddress: selectedPlace.address,
-                    lat: selectedPlace.lat,
-                    lng: selectedPlace.lng,
-                    datetime: `${form.date}T${form.time}:00`,
-                    duration: form.duration,
-                    maxPlayers: form.maxPlayers,
-                    currentPlayers: 1,
-                    fee: form.fee,
-                    status: 'open',
-                    type: form.type as any,
-                    description: form.description,
-                    players: [{
-                      userId: currentUser.id,
-                      name: currentUser.name,
-                      avatar: currentUser.avatar,
-                      position: currentUser.position,
-                      rating: currentUser.rating,
-                      paid: true
-                    }]
-                  };
-
-                  try {
-                    await matchService.createMatch(newMatch);
-                    setSubmitted(true);
-                  } catch (error) {
-                    console.error("Erreur lors de la création du match:", error);
-                    alert("Une erreur est survenue lors de la création du match.");
-                  } finally {
-                    setIsSubmitting(false);
-                  }
-                }}
+                onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="flex-1 py-3 rounded-xl btn-primary text-white font-semibold disabled:opacity-50"
+                className="flex-1 py-3 rounded-xl btn-primary text-white font-semibold flex items-center justify-center gap-2"
               >
-                {isSubmitting ? 'Publication...' : '🚀 Publier le Match'}
+                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : null}
+                {isSubmitting ? 'Création...' : 'Confirmer et Publier'}
               </button>
             </div>
           </div>

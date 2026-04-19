@@ -1,29 +1,83 @@
-import { MapPin, Clock, Users, ChevronRight, Trophy, TrendingUp, Calendar, Bell } from 'lucide-react';
+import { MapPin, Clock, Users, ChevronRight, Trophy, TrendingUp, Calendar, Bell, Loader2, Navigation, CheckCircle2 } from 'lucide-react';
 import { tournaments, notifications, currentUser } from '../data';
-import { matchService } from '../services/matchService';
-import InitDataButton from './InitDataButton';
+import { matchService, calculateDistance } from '../services/matchService';
 import { Match } from '../types';
 import { useState, useEffect } from 'react';
+import InitDataButton from './InitDataButton';
 
 interface DashboardProps {
   onNavigate: (page: string, id?: string) => void;
 }
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
-  const [upcomingMatches, setUpcomingMatches] = useState<Match[]>([]);
+  const [upcomingMatches, setUpcomingMatches] = useState<(Match & { distance?: number })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [joiningId, setJoiningId] = useState<string | null>(null);
+
+  // Récupérer la position de l'utilisateur
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.error("Erreur de géolocalisation:", error);
+        }
+      );
+    }
+  }, []);
 
   useEffect(() => {
     const unsubscribe = matchService.subscribeToMatches((allMatches) => {
-      const filtered = allMatches
+      let matchesWithDistance = allMatches.map(m => {
+        if (userLocation) {
+          return { ...m, distance: calculateDistance(userLocation.lat, userLocation.lng, m.lat, m.lng) };
+        }
+        return m;
+      });
+
+      if (userLocation) {
+        matchesWithDistance.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+      }
+
+      const filtered = matchesWithDistance
         .filter(m => m.status === 'open' || m.status === 'full')
         .slice(0, 3);
+        
       setUpcomingMatches(filtered);
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [userLocation]);
+
+  const handleQuickJoin = async (e: React.MouseEvent, match: Match) => {
+    e.stopPropagation(); // Empêcher la navigation vers le détail
+    if (match.status !== 'open') return;
+    
+    setJoiningId(match.id);
+    try {
+      await matchService.joinMatch(match.id, {
+        userId: currentUser.id,
+        name: currentUser.name,
+        avatar: currentUser.avatar,
+        position: currentUser.position,
+        rating: currentUser.rating,
+        paid: false
+      });
+      // Succès : le listener temps réel mettra à jour l'UI
+    } catch (error) {
+      console.error("Erreur lors du join rapide:", error);
+      alert("Erreur lors de l'inscription.");
+    } finally {
+      setJoiningId(null);
+    }
+  };
 
   const activeTournaments = tournaments.filter(t => t.status !== 'completed').slice(0, 2);
   const unreadNotifications = notifications.filter(n => !n.read);
@@ -40,6 +94,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
       <InitDataButton />
+      
       {/* Welcome */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -50,7 +105,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         </div>
         <button
           onClick={() => onNavigate('create-match')}
-          className="btn-primary px-6 py-3 rounded-xl text-white font-semibold flex items-center gap-2 w-fit"
+          className="btn-primary px-6 py-3 rounded-xl text-white font-semibold flex items-center gap-2 w-fit shadow-lg shadow-emerald-500/20"
         >
           <span className="text-xl">+</span> Créer un Match
         </button>
@@ -84,7 +139,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold flex items-center gap-2">
               <span className="w-1 h-6 bg-emerald-500 rounded-full" />
-              Prochains Matchs
+              {userLocation ? 'Matchs à proximité' : 'Prochains Matchs'}
             </h2>
             <button onClick={() => onNavigate('matches')} className="text-sm text-emerald-400 hover:text-emerald-300 flex items-center gap-1">
               Voir tout <ChevronRight size={16} />
@@ -93,71 +148,83 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
           {loading ? (
             <div className="flex justify-center py-10">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+              <Loader2 className="animate-spin text-emerald-500" size={32} />
             </div>
           ) : upcomingMatches.length === 0 ? (
             <div className="glass rounded-xl p-8 text-center text-slate-400">
               Aucun match prévu pour le moment.
             </div>
-          ) : upcomingMatches.map(match => (
-            <div
-              key={match.id}
-              onClick={() => onNavigate('match-detail', match.id)}
-              className="glass rounded-xl p-4 card-hover cursor-pointer"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold truncate">{match.title}</h3>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      match.status === 'open' ? 'bg-emerald-500/20 text-emerald-400' :
-                      match.status === 'full' ? 'bg-amber-500/20 text-amber-400' :
-                      'bg-slate-500/20 text-slate-400'
-                    }`}>
-                      {match.status === 'open' ? 'Ouvert' : match.status === 'full' ? 'Complet' : match.status}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-dark-lighter text-slate-300">
-                      {match.type}
-                    </span>
+          ) : upcomingMatches.map(match => {
+            const isFull = match.currentPlayers >= match.maxPlayers;
+            const isJoined = match.players.some(p => p.userId === currentUser.id);
+            const placesLeft = match.maxPlayers - match.currentPlayers;
+
+            return (
+              <div
+                key={match.id}
+                onClick={() => onNavigate('match-detail', match.id)}
+                className="glass rounded-xl p-4 card-hover cursor-pointer relative overflow-hidden group border border-transparent hover:border-emerald-500/30"
+              >
+                {match.distance !== undefined && (
+                  <div className="absolute top-0 right-0 bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-bl-xl text-[10px] font-bold flex items-center gap-1">
+                    <Navigation size={10} /> {match.distance.toFixed(1)} km
+                  </div>
+                )}
+                
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold truncate group-hover:text-emerald-400 transition-colors">{match.title}</h3>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        isFull ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'
+                      }`}>
+                        {isFull ? 'Complet' : `${placesLeft} places`}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400 mt-2">
+                      <span className="flex items-center gap-1">
+                        <MapPin size={14} className="text-emerald-400" />
+                        {match.placeName}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock size={14} className="text-amber-400" />
+                        {formatDate(match.datetime)} · {formatTime(match.datetime)}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Users size={14} className="text-blue-400" />
+                        {match.currentPlayers}/{match.maxPlayers}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400 mt-2">
-                    <span className="flex items-center gap-1">
-                      <MapPin size={14} className="text-emerald-400" />
-                      {match.placeName}, {match.placeCity}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock size={14} className="text-amber-400" />
-                      {formatDate(match.datetime)} · {formatTime(match.datetime)}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Users size={14} className="text-blue-400" />
-                      {match.currentPlayers}/{match.maxPlayers}
-                    </span>
-                  </div>
-
-                  {/* Player avatars */}
-                  <div className="flex items-center gap-1 mt-3">
-                    {match.players.slice(0, 6).map((p, i) => (
-                      <div key={i} className="w-7 h-7 rounded-full bg-dark-lighter flex items-center justify-center text-xs border-2 border-dark-card -ml-1 first:ml-0">
-                        {p.avatar}
+                  <div className="flex items-center gap-4 justify-between md:justify-end">
+                    <div className="text-right shrink-0">
+                      <p className="text-xl font-bold text-emerald-400">{match.fee} <span className="text-sm">DT</span></p>
+                    </div>
+                    
+                    {isJoined ? (
+                      <div className="bg-emerald-500/10 text-emerald-400 px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-sm">
+                        <CheckCircle2 size={16} /> Inscrit
                       </div>
-                    ))}
-                    {match.currentPlayers > 6 && (
-                      <div className="w-7 h-7 rounded-full bg-dark-lighter flex items-center justify-center text-xs border-2 border-dark-card -ml-1 text-slate-400">
-                        +{match.currentPlayers - 6}
-                      </div>
+                    ) : (
+                      <button
+                        onClick={(e) => handleQuickJoin(e, match)}
+                        disabled={isFull || joiningId === match.id}
+                        className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-lg ${
+                          isFull 
+                            ? 'bg-slate-700 text-slate-500 cursor-not-allowed' 
+                            : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/20 active:scale-95'
+                        }`}
+                      >
+                        {joiningId === match.id ? <Loader2 className="animate-spin" size={16} /> : 'REJOINDRE'}
+                      </button>
                     )}
                   </div>
                 </div>
-
-                <div className="text-right shrink-0">
-                  <p className="text-xl font-bold text-emerald-400">{match.fee} <span className="text-sm">DT</span></p>
-                  <p className="text-xs text-slate-400">par joueur</p>
-                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Right sidebar */}
