@@ -1,18 +1,27 @@
 import { useState, useEffect } from 'react';
-import { Send, ArrowLeft, Users, Search, Phone, MoreVertical } from 'lucide-react';
-import { chatRooms, currentUser } from '../data';
+import { Send, ArrowLeft, Search, Phone, MoreVertical, Loader2 } from 'lucide-react';
 import { chatService } from '../services/chatService';
-import { Message } from '../types';
+import { Message, ChatRoom } from '../types';
+import { useAuth } from '../hooks/useAuth';
 
 interface ChatProps {
   onNavigate: (page: string) => void;
 }
 
-export default function Chat(_props: ChatProps) {
+export default function Chat({ onNavigate }: ChatProps) {
+  const { userProfile, loading: authLoading } = useAuth();
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
+  const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [search, setSearch] = useState('');
+  const [loadingRooms, setLoadingRooms] = useState(true);
+
+  useEffect(() => {
+    // Dans une version réelle, on s'abonnerait aux salons de l'utilisateur
+    // Pour le moment, on simule la récupération des salons
+    setLoadingRooms(false);
+  }, []);
 
   useEffect(() => {
     if (!selectedRoom) {
@@ -27,20 +36,13 @@ export default function Chat(_props: ChatProps) {
     return () => unsubscribe();
   }, [selectedRoom]);
 
-  const room = chatRooms.find(r => r.id === selectedRoom);
-  const roomMessages = messages;
-
-  const filteredRooms = chatRooms.filter(r =>
-    r.name.toLowerCase().includes(search.toLowerCase())
-  );
-
   const sendMessage = async () => {
-    if (!message.trim() || !selectedRoom) return;
+    if (!message.trim() || !selectedRoom || !userProfile) return;
     
     const author = {
-      id: currentUser.id,
-      name: currentUser.name.split(' ')[0],
-      avatar: currentUser.avatar
+      id: userProfile.id,
+      name: userProfile.name.split(' ')[0],
+      avatar: userProfile.avatar
     };
 
     try {
@@ -51,8 +53,16 @@ export default function Chat(_props: ChatProps) {
     }
   };
 
-  // Mobile: show room list or chat
+  if (authLoading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="animate-spin text-emerald-500" size={40} />
+      </div>
+    );
+  }
+
   const showChat = selectedRoom !== null;
+  const currentRoom = rooms.find(r => r.id === selectedRoom);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
@@ -75,63 +85,49 @@ export default function Chat(_props: ChatProps) {
             </div>
 
             <div className="flex-1 overflow-y-auto">
-              {filteredRooms.map(room => (
-                <div
-                  key={room.id}
-                  onClick={() => setSelectedRoom(room.id)}
-                  className={`flex items-center gap-3 p-4 cursor-pointer transition-colors ${
-                    selectedRoom === room.id ? 'bg-emerald-500/10' : 'hover:bg-dark/50'
-                  }`}
-                >
-                  <div className="w-12 h-12 rounded-full bg-dark-lighter flex items-center justify-center text-xl shrink-0">
-                    {room.avatar}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold text-sm truncate">{room.name}</p>
-                      <span className="text-xs text-slate-500 shrink-0 ml-2">{room.lastMessageTime}</span>
+              {loadingRooms ? (
+                <div className="p-8 text-center"><Loader2 className="animate-spin mx-auto text-emerald-500" /></div>
+              ) : rooms.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 text-sm">Aucune conversation active</div>
+              ) : (
+                rooms.filter(r => r.name.toLowerCase().includes(search.toLowerCase())).map(room => (
+                  <div
+                    key={room.id}
+                    onClick={() => setSelectedRoom(room.id)}
+                    className={`flex items-center gap-3 p-4 cursor-pointer transition-colors ${
+                      selectedRoom === room.id ? 'bg-emerald-500/10' : 'hover:bg-dark/50'
+                    }`}
+                  >
+                    <div className="w-12 h-12 rounded-full bg-dark-lighter flex items-center justify-center text-xl shrink-0">
+                      {room.avatar}
                     </div>
-                    <div className="flex items-center justify-between mt-0.5">
-                      <p className="text-xs text-slate-400 truncate">{room.lastMessage}</p>
-                      {room.unreadCount > 0 && (
-                        <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center shrink-0 ml-2">
-                          {room.unreadCount}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 mt-1">
-                      <Users size={10} className="text-slate-500" />
-                      <span className="text-[10px] text-slate-500">{room.members} membres</span>
-                      <span className="text-[10px] text-slate-500 ml-1">•</span>
-                      <span className={`text-[10px] px-1.5 rounded ${
-                        room.type === 'match' ? 'bg-emerald-500/10 text-emerald-400' :
-                        room.type === 'tournament' ? 'bg-amber-500/10 text-amber-400' :
-                        'bg-blue-500/10 text-blue-400'
-                      }`}>
-                        {room.type === 'match' ? 'Match' : room.type === 'tournament' ? 'Tournoi' : 'Groupe'}
-                      </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="font-semibold text-sm truncate">{room.name}</p>
+                        <span className="text-xs text-slate-500 shrink-0 ml-2">{room.lastMessageTime}</span>
+                      </div>
+                      <p className="text-xs text-slate-400 truncate mt-0.5">{room.lastMessage}</p>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
           {/* Chat area */}
           <div className={`${showChat ? 'flex' : 'hidden md:flex'} flex-col flex-1`}>
-            {selectedRoom && room ? (
+            {selectedRoom && currentRoom ? (
               <>
-                {/* Chat header */}
                 <div className="flex items-center gap-3 p-4 border-b border-dark-border">
                   <button onClick={() => setSelectedRoom(null)} className="md:hidden text-slate-400 hover:text-white">
                     <ArrowLeft size={20} />
                   </button>
                   <div className="w-10 h-10 rounded-full bg-dark-lighter flex items-center justify-center text-lg">
-                    {room.avatar}
+                    {currentRoom.avatar}
                   </div>
                   <div className="flex-1">
-                    <p className="font-semibold">{room.name}</p>
-                    <p className="text-xs text-slate-400">{room.members} membres</p>
+                    <p className="font-semibold">{currentRoom.name}</p>
+                    <p className="text-xs text-slate-400">{currentRoom.members} membres</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button className="p-2 rounded-lg hover:bg-dark/50 text-slate-400 transition-colors"><Phone size={18} /></button>
@@ -139,40 +135,28 @@ export default function Chat(_props: ChatProps) {
                   </div>
                 </div>
 
-                {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {roomMessages.map(msg => (
-                    <div key={msg.id}>
-                      {msg.isSystem ? (
-                        <div className="text-center">
-                          <span className="px-3 py-1 rounded-full bg-dark-lighter text-xs text-slate-400">
-                            {msg.text}
-                          </span>
+                  {messages.map(msg => (
+                    <div key={msg.id} className={`flex gap-3 ${msg.authorId === userProfile?.id ? 'flex-row-reverse' : ''}`}>
+                      <div className="w-8 h-8 rounded-full bg-dark-lighter flex items-center justify-center text-sm shrink-0">
+                        {msg.authorAvatar}
+                      </div>
+                      <div className={`max-w-[70%] ${msg.authorId === userProfile?.id ? 'text-right' : ''}`}>
+                        <p className="text-xs text-slate-400 mb-1">
+                          {msg.authorName} · {msg.timestamp}
+                        </p>
+                        <div className={`px-4 py-2.5 rounded-2xl text-sm ${
+                          msg.authorId === userProfile?.id
+                            ? 'bg-emerald-500 text-white rounded-tr-sm'
+                            : 'bg-dark-lighter text-slate-200 rounded-tl-sm'
+                        }`}>
+                          {msg.text}
                         </div>
-                      ) : (
-                        <div className={`flex gap-3 ${msg.authorId === currentUser.id ? 'flex-row-reverse' : ''}`}>
-                          <div className="w-8 h-8 rounded-full bg-dark-lighter flex items-center justify-center text-sm shrink-0">
-                            {msg.authorAvatar}
-                          </div>
-                          <div className={`max-w-[70%] ${msg.authorId === currentUser.id ? 'text-right' : ''}`}>
-                            <p className="text-xs text-slate-400 mb-1">
-                              {msg.authorName} · {msg.timestamp}
-                            </p>
-                            <div className={`px-4 py-2.5 rounded-2xl text-sm ${
-                              msg.authorId === currentUser.id
-                                ? 'bg-emerald-500 text-white rounded-tr-sm'
-                                : 'bg-dark-lighter text-slate-200 rounded-tl-sm'
-                            }`}>
-                              {msg.text}
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                      </div>
                     </div>
                   ))}
                 </div>
 
-                {/* Input */}
                 <div className="p-4 border-t border-dark-border">
                   <div className="flex items-center gap-2">
                     <input

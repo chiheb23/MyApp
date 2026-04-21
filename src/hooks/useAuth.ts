@@ -15,7 +15,28 @@ export function useAuth() {
       
       if (fUser) {
         try {
-          const profile = await userService.getUserProfile(fUser.uid);
+          // Récupérer ou créer le profil utilisateur réel
+          let profile = await userService.getUserProfile(fUser.uid);
+          if (!profile) {
+            // Création d'un profil par défaut si inexistant
+            const newProfile: Omit<User, 'id'> = {
+              name: fUser.displayName || 'Joueur Anonyme',
+              email: fUser.email || '',
+              avatar: '⚽',
+              city: 'Tunis',
+              level: 'Intermédiaire',
+              position: 'Milieu',
+              matchesPlayed: 0,
+              goals: 0,
+              assists: 0,
+              rating: 5.0,
+              role: 'user',
+              phone: '',
+              joined: new Date().toISOString()
+            };
+            await userService.updateUserProfile(fUser.uid, newProfile);
+            profile = { id: fUser.uid, ...newProfile } as User;
+          }
           setUserProfile(profile);
         } catch (error) {
           console.error("Erreur lors de la récupération du profil:", error);

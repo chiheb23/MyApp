@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Landing from './components/Landing';
@@ -12,7 +12,6 @@ import Profile from './components/Profile';
 import Chat from './components/Chat';
 import Admin from './components/Admin';
 import { useAuth } from './hooks/useAuth';
-import DataSeeder from './components/DataSeeder';
 import { notificationService } from './services/notificationService';
 
 // Composant pour faire défiler vers le haut lors du changement de route
@@ -25,8 +24,8 @@ function ScrollToTop() {
 }
 
 // Composant pour protéger les routes privées
-function PrivateRoute({ children }: { children: JSX.Element }) {
-  const { firebaseUser, loading } = useAuth();
+function PrivateRoute({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) {
+  const { firebaseUser, userProfile, loading } = useAuth();
   
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-dark">
@@ -34,9 +33,13 @@ function PrivateRoute({ children }: { children: JSX.Element }) {
     </div>
   );
   
-  // Pour le moment, on laisse passer si on n'a pas encore configuré l'auth obligatoire
-  // return firebaseUser ? children : <Navigate to="/" />;
-  return children;
+  if (!firebaseUser) return <Navigate to="/" />;
+  
+  if (adminOnly && userProfile?.role !== 'admin') {
+    return <Navigate to="/dashboard" />;
+  }
+  
+  return <>{children}</>;
 }
 
 export default function App() {
@@ -60,9 +63,6 @@ export default function App() {
           {/* Route Landing sans Navbar */}
           <Route path="/" element={<Landing onNavigate={(page) => window.location.href = `/${page}`} />} />
           
-          {/* Route Seeder */}
-          <Route path="/seed" element={<DataSeeder />} />
-
           {/* Routes avec Navbar */}
           <Route path="/*" element={<MainLayout />} />
         </Routes>
@@ -73,28 +73,28 @@ export default function App() {
 
 function MainLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const currentPage = location.pathname.split('/')[1] || 'dashboard';
 
-  // Fonction de navigation compatible avec l'ancien système pour éviter de tout casser d'un coup
-  const navigate = (page: string, id?: string) => {
+  const handleNavigate = (page: string, id?: string) => {
     const path = id ? `/${page}/${id}` : `/${page}`;
-    window.location.href = path; // Utilisation temporaire pour la transition
+    navigate(path);
   };
 
   return (
     <>
-      <Navbar currentPage={currentPage} onNavigate={navigate} />
+      <Navbar currentPage={currentPage} onNavigate={handleNavigate} />
       <main className={currentPage === 'landing' ? '' : 'pb-20 md:pb-8'}>
         <Routes>
-          <Route path="/dashboard" element={<PrivateRoute><Dashboard onNavigate={navigate} /></PrivateRoute>} />
-          <Route path="/matches" element={<PrivateRoute><Matches onNavigate={navigate} /></PrivateRoute>} />
-          <Route path="/match/:id" element={<PrivateRoute><MatchDetailWrapper onNavigate={navigate} /></PrivateRoute>} />
-          <Route path="/create-match" element={<PrivateRoute><CreateMatch onNavigate={navigate} /></PrivateRoute>} />
-          <Route path="/tournaments" element={<PrivateRoute><Tournaments onNavigate={navigate} /></PrivateRoute>} />
-          <Route path="/tournament/:id" element={<PrivateRoute><TournamentDetailWrapper onNavigate={navigate} /></PrivateRoute>} />
-          <Route path="/profile" element={<PrivateRoute><Profile onNavigate={navigate} /></PrivateRoute>} />
-          <Route path="/chat" element={<PrivateRoute><Chat onNavigate={navigate} /></PrivateRoute>} />
-          <Route path="/admin" element={<PrivateRoute><Admin onNavigate={navigate} /></PrivateRoute>} />
+          <Route path="/dashboard" element={<PrivateRoute><Dashboard onNavigate={handleNavigate} /></PrivateRoute>} />
+          <Route path="/matches" element={<PrivateRoute><Matches onNavigate={handleNavigate} /></PrivateRoute>} />
+          <Route path="/match/:id" element={<PrivateRoute><MatchDetailWrapper onNavigate={handleNavigate} /></PrivateRoute>} />
+          <Route path="/create-match" element={<PrivateRoute><CreateMatch onNavigate={handleNavigate} /></PrivateRoute>} />
+          <Route path="/tournaments" element={<PrivateRoute><Tournaments onNavigate={handleNavigate} /></PrivateRoute>} />
+          <Route path="/tournament/:id" element={<PrivateRoute><TournamentDetailWrapper onNavigate={handleNavigate} /></PrivateRoute>} />
+          <Route path="/profile" element={<PrivateRoute><Profile onNavigate={handleNavigate} /></PrivateRoute>} />
+          <Route path="/chat" element={<PrivateRoute><Chat onNavigate={handleNavigate} /></PrivateRoute>} />
+          <Route path="/admin" element={<PrivateRoute adminOnly><Admin onNavigate={handleNavigate} /></PrivateRoute>} />
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
       </main>
@@ -111,7 +111,7 @@ function MainLayout() {
           ].map(item => (
             <button
               key={item.id}
-              onClick={() => window.location.href = item.path}
+              onClick={() => navigate(item.path)}
               className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors ${
                 currentPage === item.id ? 'text-emerald-400' : 'text-slate-500'
               }`}
@@ -125,9 +125,6 @@ function MainLayout() {
     </>
   );
 }
-
-// Wrappers pour extraire les IDs des paramètres d'URL
-import { useParams } from 'react-router-dom';
 
 function MatchDetailWrapper({ onNavigate }: { onNavigate: any }) {
   const { id } = useParams();

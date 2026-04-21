@@ -5,9 +5,7 @@ import {
   getDoc, 
   doc, 
   updateDoc, 
-  deleteDoc, 
   query, 
-  where, 
   onSnapshot,
   Timestamp
 } from "firebase/firestore";
@@ -60,6 +58,18 @@ export const matchService = {
     return onSnapshot(q, (querySnapshot) => {
       const matches = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
       callback(matches);
+    });
+  },
+
+  // Écouter un match en temps réel par son ID
+  subscribeToMatch(id: string, callback: (match: Match | null) => void) {
+    const docRef = doc(db, MATCHES_COLLECTION, id);
+    return onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        callback({ id: docSnap.id, ...docSnap.data() } as Match);
+      } else {
+        callback(null);
+      }
     });
   },
 

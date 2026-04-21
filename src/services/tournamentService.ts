@@ -2,15 +2,14 @@ import {
   collection, 
   doc, 
   getDoc, 
-  getDocs, 
   query, 
-  where, 
   orderBy, 
   onSnapshot,
   addDoc,
   updateDoc,
   arrayUnion,
-  Timestamp
+  Timestamp,
+  increment
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { Tournament } from "../types";
@@ -30,7 +29,19 @@ export const tournamentService = {
     });
   },
 
-  // Récupérer un tournoi par son ID
+  // Récupérer un tournoi en temps réel par son ID
+  subscribeToTournament(id: string, callback: (tournament: Tournament | null) => void) {
+    const docRef = doc(db, TOURNAMENTS_COLLECTION, id);
+    return onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        callback({ id: docSnap.id, ...docSnap.data() } as Tournament);
+      } else {
+        callback(null);
+      }
+    });
+  },
+
+  // Récupérer un tournoi par son ID (Promesse)
   async getTournamentById(id: string) {
     try {
       const docRef = doc(db, TOURNAMENTS_COLLECTION, id);
@@ -63,16 +74,8 @@ export const tournamentService = {
       const docRef = doc(db, TOURNAMENTS_COLLECTION, tournamentId);
       await updateDoc(docRef, {
         teams: arrayUnion(teamData),
-        currentTeams: Timestamp.now() // On pourrait incrémenter un compteur ici
+        currentTeams: increment(1)
       });
-      
-      // Note: Dans une vraie app, on utiliserait increment() pour currentTeams
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        await updateDoc(docRef, {
-          currentTeams: snap.data().teams.length
-        });
-      }
     } catch (error) {
       throw error;
     }

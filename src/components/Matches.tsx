@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { MapPin, Clock, Users, Search, SlidersHorizontal } from 'lucide-react';
+import { MapPin, Clock, Users, Search, SlidersHorizontal, Loader2, Calendar } from 'lucide-react';
 import { matchService } from '../services/matchService';
 import { Match } from '../types';
+import { useAuth } from '../hooks/useAuth';
 
 interface MatchesProps {
   onNavigate: (page: string, id?: string) => void;
 }
 
 export default function Matches({ onNavigate }: MatchesProps) {
+  const { userProfile, loading: authLoading } = useAuth();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -41,9 +43,16 @@ export default function Matches({ onNavigate }: MatchesProps) {
   };
   const formatTime = (d: string) => new Date(d).toLocaleTimeString('fr-TN', { hour: '2-digit', minute: '2-digit' });
 
+  if (authLoading) {
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 className="animate-spin text-emerald-500" size={40} />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Matchs ⚽</h1>
@@ -57,7 +66,6 @@ export default function Matches({ onNavigate }: MatchesProps) {
         </button>
       </div>
 
-      {/* Search & Filters */}
       <div className="space-y-3">
         <div className="flex gap-3">
           <div className="flex-1 relative">
@@ -108,99 +116,70 @@ export default function Matches({ onNavigate }: MatchesProps) {
         )}
       </div>
 
-      {/* Quick type filters */}
-      <div className="flex gap-2 flex-wrap">
-        {['Tous', '5v5', '7v7', '11v11'].map(t => (
-          <button
-            key={t}
-            onClick={() => setTypeFilter(t === 'Tous' ? 'all' : t)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-              (t === 'Tous' && typeFilter === 'all') || typeFilter === t
-                ? 'bg-emerald-500 text-white'
-                : 'glass text-slate-400 hover:text-white'
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {/* Match Grid */}
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+          <Loader2 className="animate-spin text-emerald-500" size={40} />
         </div>
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
           {filtered.map(match => (
-          <div
-            key={match.id}
-            onClick={() => onNavigate('match-detail', match.id)}
-            className="glass rounded-2xl p-5 card-hover cursor-pointer group"
-          >
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-bold text-lg group-hover:text-emerald-400 transition-colors">{match.title}</h3>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                    match.status === 'open' ? 'bg-emerald-500/20 text-emerald-400' :
-                    match.status === 'full' ? 'bg-amber-500/20 text-amber-400' :
-                    'bg-slate-500/20 text-slate-400'
-                  }`}>
-                    {match.status === 'open' ? 'Ouvert' : match.status === 'full' ? 'Complet' : match.status}
-                  </span>
+            <div
+              key={match.id}
+              onClick={() => onNavigate('match-detail', match.id)}
+              className="glass rounded-2xl p-5 card-hover cursor-pointer group"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-lg group-hover:text-emerald-400 transition-colors">{match.title}</h3>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      match.status === 'open' ? 'bg-emerald-500/20 text-emerald-400' :
+                      match.status === 'full' ? 'bg-amber-500/20 text-amber-400' :
+                      'bg-slate-500/20 text-slate-400'
+                    }`}>
+                      {match.status === 'open' ? 'Ouvert' : match.status === 'full' ? 'Complet' : match.status}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-400 mt-1">par {match.ownerName}</p>
                 </div>
-                <p className="text-sm text-slate-400 mt-1">par {match.ownerName}</p>
-              </div>
-              <div className="text-right shrink-0">
-                <span className="px-3 py-1 rounded-lg bg-dark-lighter text-sm font-semibold">{match.type}</span>
-              </div>
-            </div>
-
-            <div className="space-y-2 text-sm text-slate-400">
-              <div className="flex items-center gap-2">
-                <MapPin size={14} className="text-emerald-400 shrink-0" />
-                <span className="truncate">{match.placeName}, {match.placeCity}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock size={14} className="text-amber-400 shrink-0" />
-                <span>{formatDate(match.datetime)} · {formatTime(match.datetime)} · {match.duration}min</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Users size={14} className="text-blue-400 shrink-0" />
-                <span>{match.currentPlayers}/{match.maxPlayers} joueurs</span>
-                <div className="flex-1 bg-dark rounded-full h-1.5 ml-2">
-                  <div
-                    className={`h-1.5 rounded-full transition-all ${match.currentPlayers >= match.maxPlayers ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                    style={{ width: `${(match.currentPlayers / match.maxPlayers) * 100}%` }}
-                  />
+                <div className="text-right shrink-0">
+                  <span className="px-3 py-1 rounded-lg bg-dark-lighter text-sm font-semibold">{match.type}</span>
                 </div>
               </div>
-            </div>
 
-            <div className="flex items-center justify-between mt-4 pt-3 border-t border-dark-border">
-              <div className="flex -space-x-2">
-                {match.players.slice(0, 5).map((p, i) => (
-                  <div key={i} className="w-8 h-8 rounded-full bg-dark-lighter flex items-center justify-center text-sm border-2 border-dark-card">
-                    {p.avatar}
-                  </div>
-                ))}
-                {match.currentPlayers > 5 && (
-                  <div className="w-8 h-8 rounded-full bg-dark-lighter flex items-center justify-center text-xs border-2 border-dark-card text-slate-400">
-                    +{match.currentPlayers - 5}
-                  </div>
-                )}
+              <div className="space-y-2 text-sm text-slate-400">
+                <div className="flex items-center gap-2">
+                  <MapPin size={14} className="text-emerald-400 shrink-0" />
+                  <span className="truncate">{match.placeName}, {match.placeCity}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock size={14} className="text-amber-400 shrink-0" />
+                  <span>{formatDate(match.datetime)} · {formatTime(match.datetime)} · {match.duration}min</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Users size={14} className="text-blue-400 shrink-0" />
+                  <span>{match.currentPlayers}/{match.maxPlayers} joueurs</span>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <p className="text-lg font-bold text-emerald-400">{match.fee} <span className="text-sm">DT</span></p>
-                {match.status === 'open' && (
-                  <button className="px-4 py-2 rounded-lg btn-primary text-white text-sm font-semibold">
-                    Rejoindre
-                  </button>
-                )}
+
+              <div className="flex items-center justify-between mt-4 pt-3 border-t border-dark-border">
+                <div className="flex -space-x-2">
+                  {match.players.slice(0, 5).map((p, i) => (
+                    <div key={i} className="w-8 h-8 rounded-full bg-dark-lighter flex items-center justify-center text-sm border-2 border-dark-card">
+                      {p.avatar}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-3">
+                  <p className="text-lg font-bold text-emerald-400">{match.fee} DT</p>
+                  {match.status === 'open' && (
+                    <button className="px-4 py-2 rounded-lg btn-primary text-white text-sm font-semibold">
+                      Rejoindre
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
           ))}
         </div>
       )}
