@@ -27,8 +27,8 @@ function AnimatedCounter({ end, duration = 2000, suffix = '' }: { end: number; d
 }
 
 // ── Auth Modal ──────────────────────────────────────────────────────────────
-function AuthModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const [tab, setTab] = useState<'login' | 'register'>('login');
+function AuthModal({ onClose, onSuccess, initialTab }: { onClose: () => void; onSuccess: () => void; initialTab: 'login' | 'register' }) {
+  const [tab, setTab] = useState<'login' | 'register'>(initialTab);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -276,6 +276,7 @@ export default function Landing({ onNavigate }: LandingProps) {
       {/* Auth Modal */}
       {showAuth && (
         <AuthModal
+          initialTab={authTab}
           onClose={() => setShowAuth(false)}
           onSuccess={() => {
             setShowAuth(false);

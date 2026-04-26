@@ -25,7 +25,8 @@ function ScrollToTop() {
 
 // Composant pour protéger les routes privées
 function PrivateRoute({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) {
-  const { firebaseUser, userProfile, loading } = useAuth();
+  const location = useLocation();
+  const { firebaseUser, userProfile, loading, profileMissing } = useAuth();
   
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-dark">
@@ -34,6 +35,10 @@ function PrivateRoute({ children, adminOnly = false }: { children: React.ReactNo
   );
   
   if (!firebaseUser) return <Navigate to="/" />;
+
+  if (profileMissing && location.pathname !== '/profile') {
+    return <Navigate to="/profile" />;
+  }
   
   if (adminOnly && userProfile?.role !== 'admin') {
     return <Navigate to="/dashboard" />;
@@ -77,7 +82,12 @@ function MainLayout() {
   const currentPage = location.pathname.split('/')[1] || 'dashboard';
 
   const handleNavigate = (page: string, id?: string) => {
-    const path = id ? `/${page}/${id}` : `/${page}`;
+    const routeMap: Record<string, string> = {
+      'match-detail': 'match',
+      'tournament-detail': 'tournament'
+    };
+    const targetPage = routeMap[page] || page;
+    const path = id ? `/${targetPage}/${id}` : `/${targetPage}`;
     navigate(path);
   };
 

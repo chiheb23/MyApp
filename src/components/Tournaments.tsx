@@ -9,7 +9,7 @@ interface TournamentsProps {
 }
 
 export default function Tournaments({ onNavigate }: TournamentsProps) {
-  const { userProfile, loading: authLoading } = useAuth();
+  const { loading: authLoading } = useAuth();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
 

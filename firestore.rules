@@ -7,38 +7,189 @@ service cloud.firestore {
     }
 
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return isAuth() && request.auth.uid == userId;
     }
 
     function isAdmin() {
-      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuth() && (
+        request.auth.token.role == 'admin' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function placeBelongsToUser(placeId) {
+      return isAuth() &&
+        get(/databases/$(database)/documents/places/$(placeId)).data.adminId == request.auth.uid;
+    }
+
+    function onlyChanges(allowedKeys) {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(allowedKeys);
+    }
+
+    function hasOnlyKeys(allowedKeys) {
+      return request.resource.data.keys().hasOnly(allowedKeys);
+    }
+
+    function userKeysAreValid() {
+      return hasOnlyKeys([
+        'id',
+        'name',
+        'email',
+        'avatar',
+        'phone',
+        'city',
+        'level',
+        'position',
+        'rating',
+        'matchesPlayed',
+        'goals',
+        'assists',
+        'joined',
+        'role',
+        'createdAt',
+        'updatedAt',
+        'fcmTokens'
+      ]);
+    }
+
+    function matchKeysAreValid() {
+      return hasOnlyKeys([
+        'title',
+        'placeId',
+        'datetime',
+        'duration',
+        'maxPlayers',
+        'fee',
+        'type',
+        'description',
+        'ownerId',
+        'ownerName',
+        'ownerAvatar',
+        'placeName',
+        'placeCity',
+        'placeAddress',
+        'lat',
+        'lng',
+        'currentPlayers',
+        'status',
+        'players',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    function messageKeysAreValid() {
+      return hasOnlyKeys([
+        'roomId',
+        'authorId',
+        'authorName',
+        'authorAvatar',
+        'text',
+        'timestamp',
+        'isSystem'
+      ]);
+    }
+
+    function tournamentKeysAreValid() {
+      return hasOnlyKeys([
+        'name',
+        'organizerId',
+        'organizerName',
+        'city',
+        'startDate',
+        'endDate',
+        'maxTeams',
+        'currentTeams',
+        'prizePool',
+        'entryFee',
+        'status',
+        'type',
+        'teams',
+        'bracket',
+        'isLive',
+        'isArchived',
+        'archivedAt',
+        'archivedBy',
+        'createdAt'
+      ]);
     }
 
     match /users/{userId} {
       allow read: if isAuth();
-      allow write: if isOwner(userId) || isAdmin();
+
+      allow create: if isOwner(userId) && userKeysAreValid();
+
+      allow update: if isOwner(userId) &&
+        userKeysAreValid() &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.matchesPlayed == resource.data.matchesPlayed &&
+        request.resource.data.goals == resource.data.goals &&
+        request.resource.data.assists == resource.data.assists &&
+        request.resource.data.rating == resource.data.rating;
+
+      allow delete: if isAdmin();
     }
 
     match /matches/{matchId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isAuth() && (request.auth.uid == resource.data.ownerId || isAdmin());
-      allow delete: if isAuth() && (request.auth.uid == resource.data.ownerId || isAdmin());
+
+      // Les ecritures critiques passent par Cloud Functions.
+      allow create, update, delete: if false;
     }
 
-    match /tournaments/{tournamentId} {
+    match /places/{placeId} {
       allow read: if isAuth();
-      allow write: if isAdmin();
+      allow create: if isAuth() &&
+        request.resource.data.adminId == request.auth.uid;
+      allow update: if isAuth() && (placeBelongsToUser(placeId) || isAdmin());
+      allow delete: if false;
     }
 
     match /messages/{messageId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.resource.data.senderId == request.auth.uid;
+
+      allow create: if isAuth() &&
+        messageKeysAreValid() &&
+        request.resource.data.authorId == request.auth.uid &&
+        request.resource.data.text is string &&
+        request.resource.data.text.size() > 0 &&
+        request.resource.data.text.size() < 500;
+
+      allow update: if false;
+      allow delete: if isAdmin();
     }
 
     match /notifications/{notifId} {
-      allow read: if isAuth() && request.auth.uid == resource.data.userId;
-      allow write: if isAuth();
+      allow read: if isAuth() &&
+        request.auth.uid == resource.data.userId;
+
+      allow create: if false;
+
+      allow update: if isAdmin() ||
+        (
+          isAuth() &&
+          request.auth.uid == resource.data.userId &&
+          onlyChanges(['read']) &&
+          request.resource.data.read is bool
+        );
+
+      allow delete: if isAuth() &&
+        request.auth.uid == resource.data.userId;
+    }
+
+    match /tournaments/{tournamentId} {
+      allow read: if isAuth();
+
+      allow create: if isAdmin() && tournamentKeysAreValid();
+
+      allow update: if isAdmin() && tournamentKeysAreValid();
+
+      allow delete: if isAdmin();
+    }
+
+    match /chatRooms/{roomId} {
+      allow read: if isAuth();
+      allow create, update, delete: if isAdmin();
     }
   }
 }

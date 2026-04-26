@@ -9,24 +9,56 @@ interface ProfileProps {
   onNavigate: (page: string) => void;
 }
 
+const emptyProfileDraft: Partial<User> = {
+  avatar: '👤',
+  city: '',
+  position: 'Milieu',
+  level: 'Débutant',
+  phone: '',
+  role: 'user',
+  matchesPlayed: 0,
+  goals: 0,
+  assists: 0,
+  rating: 0
+};
+
 export default function Profile({ onNavigate }: ProfileProps) {
-  const { userProfile, loading: authLoading } = useAuth();
+  const { firebaseUser, userProfile, loading: authLoading, profileMissing } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  const [editedProfile, setEditedProfile] = useState<Partial<User>>({});
+  const [editedProfile, setEditedProfile] = useState<Partial<User>>(emptyProfileDraft);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (userProfile) {
       setEditedProfile(userProfile);
+      return;
     }
-  }, [userProfile]);
+
+    if (firebaseUser) {
+      setEditedProfile({
+        ...emptyProfileDraft,
+        name: firebaseUser.displayName || '',
+        email: firebaseUser.email || '',
+        joined: new Date().toISOString().split('T')[0]
+      });
+    }
+  }, [firebaseUser, userProfile]);
 
   const handleSave = async () => {
-    if (!userProfile) return;
+    if (!firebaseUser) return;
 
     setSaving(true);
     try {
-      await userService.updateUserProfile(userProfile.id, editedProfile);
+      const payload: Partial<User> = {
+        ...emptyProfileDraft,
+        ...editedProfile,
+        name: editedProfile.name?.trim() || firebaseUser.displayName || 'Joueur',
+        email: editedProfile.email || firebaseUser.email || '',
+        city: editedProfile.city?.trim() || 'Tunisie',
+        joined: editedProfile.joined || new Date().toISOString().split('T')[0]
+      };
+
+      await userService.saveUserProfile(firebaseUser.uid, payload);
       setIsEditing(false);
     } catch (error) {
       console.error('Erreur lors de la sauvegarde du profil:', error);
@@ -48,6 +80,75 @@ export default function Profile({ onNavigate }: ProfileProps) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <Loader2 className="animate-spin text-emerald-500" size={40} />
+      </div>
+    );
+  }
+
+  if (!firebaseUser) return null;
+
+  if (profileMissing) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+        <div className="glass rounded-3xl p-8">
+          <h1 className="text-2xl font-bold mb-2">Complète ton profil</h1>
+          <p className="text-slate-400 mb-6">
+            On a besoin de quelques infos réelles avant de te laisser créer ou rejoindre un match.
+          </p>
+
+          <div className="space-y-4">
+            <input
+              type="text"
+              value={editedProfile.name || ''}
+              onChange={(e) => setEditedProfile({ ...editedProfile, name: e.target.value })}
+              placeholder="Nom complet"
+              className="w-full px-4 py-3 rounded-xl bg-dark-card text-white border border-dark-border outline-none focus:ring-2 focus:ring-emerald-500/50"
+            />
+            <input
+              type="text"
+              value={editedProfile.city || ''}
+              onChange={(e) => setEditedProfile({ ...editedProfile, city: e.target.value })}
+              placeholder="Ville"
+              className="w-full px-4 py-3 rounded-xl bg-dark-card text-white border border-dark-border outline-none focus:ring-2 focus:ring-emerald-500/50"
+            />
+            <div className="grid sm:grid-cols-2 gap-4">
+              <select
+                value={editedProfile.position || 'Milieu'}
+                onChange={(e) => setEditedProfile({ ...editedProfile, position: e.target.value })}
+                className="w-full px-4 py-3 rounded-xl bg-dark-card text-white border border-dark-border outline-none focus:ring-2 focus:ring-emerald-500/50"
+              >
+                {['Gardien', 'Defenseur', 'Milieu', 'Attaquant'].map((position) => (
+                  <option key={position} value={position}>{position}</option>
+                ))}
+              </select>
+              <select
+                value={editedProfile.level || 'Débutant'}
+                onChange={(e) => setEditedProfile({ ...editedProfile, level: e.target.value as User['level'] })}
+                className="w-full px-4 py-3 rounded-xl bg-dark-card text-white border border-dark-border outline-none focus:ring-2 focus:ring-emerald-500/50"
+              >
+                {['Débutant', 'Intermédiaire', 'Avancé', 'Pro'].map((level) => (
+                  <option key={level} value={level}>{level}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={handleSave}
+              disabled={saving || !editedProfile.name}
+              className="btn-primary px-6 py-3 rounded-xl text-white font-semibold flex items-center gap-2 disabled:opacity-60"
+            >
+              {saving ? <Loader2 className="animate-spin" size={18} /> : null}
+              Enregistrer mon profil
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-6 py-3 rounded-xl glass text-slate-300 font-semibold"
+            >
+              Se déconnecter
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -206,7 +307,7 @@ export default function Profile({ onNavigate }: ProfileProps) {
                     onChange={(e) => setEditedProfile({ ...editedProfile, level: e.target.value as User['level'] })}
                     className="w-full mt-1 bg-dark-card border border-dark-border rounded-lg px-3 py-2 text-sm outline-none focus:border-emerald-500"
                   >
-                    {['Debutant', 'Intermediaire', 'Avance', 'Pro'].map((level) => (
+                    {['Débutant', 'Intermédiaire', 'Avancé', 'Pro'].map((level) => (
                       <option key={level} value={level}>{level}</option>
                     ))}
                   </select>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Trophy, MapPin, Calendar, Users, Play, Loader2 } from 'lucide-react';
+import { ArrowLeft, Trophy, MapPin, Calendar, Users, Loader2 } from 'lucide-react';
 import { tournamentService } from '../services/tournamentService';
 import { Tournament, BracketMatch } from '../types';
 import { useAuth } from '../hooks/useAuth';
@@ -45,7 +45,7 @@ function BracketMatchCard({ match }: { match: BracketMatch }) {
 }
 
 export default function TournamentDetail({ tournamentId, onNavigate }: TournamentDetailProps) {
-  const { userProfile, loading: authLoading } = useAuth();
+  const { loading: authLoading } = useAuth();
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
 

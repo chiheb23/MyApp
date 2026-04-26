@@ -53,6 +53,8 @@ export interface MatchPlayer {
 
 export interface Place {
   id: string;
+  adminId: string;
+  adminName: string;
   name: string;
   city: string;
   address: string;
@@ -63,6 +65,8 @@ export interface Place {
   rating: number;
   image: string;
   amenities: string[];
+  isActive: boolean;
+  createdAt?: string;
 }
 
 export interface Tournament {
@@ -82,6 +86,9 @@ export interface Tournament {
   teams: TournamentTeam[];
   bracket: BracketMatch[];
   isLive?: boolean;
+  isArchived?: boolean;
+  archivedAt?: string;
+  archivedBy?: string;
 }
 
 export interface TournamentTeam {
@@ -126,6 +133,7 @@ export interface ChatRoom {
 
 export interface Notification {
   id: string;
+  userId: string;
   type: 'match_invite' | 'match_confirmed' | 'payment' | 'tournament' | 'chat' | 'system';
   title: string;
   message: string;

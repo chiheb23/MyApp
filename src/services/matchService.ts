@@ -1,113 +1,112 @@
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  getDoc, 
-  doc, 
-  updateDoc, 
-  query, 
-  onSnapshot,
-  Timestamp
-} from "firebase/firestore";
-import { db } from "../firebase";
-import { Match } from "../types";
-import { notificationService } from "./notificationService";
+import {
+  collection,
+  getDoc,
+  getDocs,
+  doc,
+  query,
+  onSnapshot
+} from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../firebase';
+import { Match } from '../types';
 
-const MATCHES_COLLECTION = "matches";
+const MATCHES_COLLECTION = 'matches';
 
-// Fonction utilitaire pour calculer la distance entre deux points (Haversine)
+interface CreateMatchInput {
+  title: string;
+  placeId: string;
+  datetime: string;
+  duration: number;
+  maxPlayers: number;
+  fee: number;
+  type: Match['type'];
+  description?: string;
+}
+
+const createMatchCallable = httpsCallable<CreateMatchInput, { matchId: string }>(
+  functions,
+  'createMatch'
+);
+
+const joinMatchCallable = httpsCallable<{ matchId: string }, { success: boolean }>(
+  functions,
+  'joinMatch'
+);
+
+const leaveMatchCallable = httpsCallable<{ matchId: string }, { success: boolean }>(
+  functions,
+  'leaveMatch'
+);
+
 export const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371; // Rayon de la Terre en km
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
 
 export const matchService = {
-  // Créer un match
-  async createMatch(matchData: Omit<Match, 'id'>) {
-    try {
-      const docRef = await addDoc(collection(db, MATCHES_COLLECTION), {
-        ...matchData,
-        createdAt: Timestamp.now()
-      });
-      return docRef.id;
-    } catch (error) {
-      throw error;
-    }
+  async createMatch(matchData: CreateMatchInput) {
+    const result = await createMatchCallable(matchData);
+    return result.data.matchId;
   },
 
-  // Récupérer tous les matchs
   async getMatches() {
-    try {
-      const querySnapshot = await getDocs(collection(db, MATCHES_COLLECTION));
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
-    } catch (error) {
-      throw error;
-    }
+    const querySnapshot = await getDocs(collection(db, MATCHES_COLLECTION));
+    return querySnapshot.docs.map((snapshot) => ({ id: snapshot.id, ...snapshot.data() } as Match));
   },
 
-  // Écouter les matchs en temps réel
   subscribeToMatches(callback: (matches: Match[]) => void) {
     const q = query(collection(db, MATCHES_COLLECTION));
     return onSnapshot(q, (querySnapshot) => {
-      const matches = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
+      const matches = querySnapshot.docs.map((snapshot) => ({ id: snapshot.id, ...snapshot.data() } as Match));
       callback(matches);
     });
   },
 
-  // Écouter un match en temps réel par son ID
+  subscribeToMatchesByPlaceIds(placeIds: string[], callback: (matches: Match[]) => void) {
+    return this.subscribeToMatches((matches) => {
+      if (placeIds.length === 0) {
+        callback([]);
+        return;
+      }
+
+      callback(matches.filter((match) => placeIds.includes(match.placeId)));
+    });
+  },
+
   subscribeToMatch(id: string, callback: (match: Match | null) => void) {
     const docRef = doc(db, MATCHES_COLLECTION, id);
     return onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         callback({ id: docSnap.id, ...docSnap.data() } as Match);
-      } else {
-        callback(null);
+        return;
       }
+
+      callback(null);
     });
   },
 
-  // Récupérer un match par ID
   async getMatchById(id: string) {
-    try {
-      const docRef = doc(db, MATCHES_COLLECTION, id);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        return { id: docSnap.id, ...docSnap.data() } as Match;
-      }
-      return null;
-    } catch (error) {
-      throw error;
+    const docRef = doc(db, MATCHES_COLLECTION, id);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as Match;
     }
+
+    return null;
   },
 
-  // Rejoindre un match
-  async joinMatch(matchId: string, player: any) {
-    try {
-      const matchRef = doc(db, MATCHES_COLLECTION, matchId);
-      const matchSnap = await getDoc(matchRef);
-      if (matchSnap.exists()) {
-        const matchData = matchSnap.data() as Match;
-        const updatedPlayers = [...matchData.players, player];
-        await updateDoc(matchRef, {
-          players: updatedPlayers,
-          currentPlayers: updatedPlayers.length,
-          status: updatedPlayers.length >= matchData.maxPlayers ? 'full' : 'open'
-        });
+  async joinMatch(matchId: string) {
+    await joinMatchCallable({ matchId });
+  },
 
-        // Notifier le créateur du match
-        if (matchData.ownerId !== player.userId) {
-          await notificationService.notifyMatchJoined(matchData.ownerId, player.name, matchData.title);
-        }
-      }
-    } catch (error) {
-      throw error;
-    }
+  async leaveMatch(matchId: string) {
+    await leaveMatchCallable({ matchId });
   }
 };

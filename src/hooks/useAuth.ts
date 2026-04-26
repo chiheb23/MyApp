@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { authService } from '../services/authService';
 import { userService } from '../services/userService';
@@ -12,44 +12,31 @@ export function useAuth() {
   useEffect(() => {
     const unsubscribe = authService.onAuthChange(async (fUser) => {
       setFirebaseUser(fUser);
-      
-      if (fUser) {
-        try {
-          // Récupérer ou créer le profil utilisateur réel
-          let profile = await userService.getUserProfile(fUser.uid);
-          if (!profile) {
-            // Création d'un profil par défaut si inexistant
-            const newProfile: Omit<User, 'id'> = {
-              name: fUser.displayName || 'Joueur Anonyme',
-              email: fUser.email || '',
-              avatar: '⚽',
-              city: 'Tunis',
-              level: 'Intermédiaire',
-              position: 'Milieu',
-              matchesPlayed: 0,
-              goals: 0,
-              assists: 0,
-              rating: 5.0,
-              role: 'user',
-              phone: '',
-              joined: new Date().toISOString()
-            };
-            await userService.updateUserProfile(fUser.uid, newProfile);
-            profile = { id: fUser.uid, ...newProfile } as User;
-          }
-          setUserProfile(profile);
-        } catch (error) {
-          console.error("Erreur lors de la récupération du profil:", error);
-        }
-      } else {
+
+      if (!fUser) {
         setUserProfile(null);
+        setLoading(false);
+        return;
       }
-      
-      setLoading(false);
+
+      try {
+        const profile = await userService.getUserProfile(fUser.uid);
+        setUserProfile(profile);
+      } catch (error) {
+        console.error('Erreur lors de la recuperation du profil:', error);
+        setUserProfile(null);
+      } finally {
+        setLoading(false);
+      }
     });
 
     return () => unsubscribe();
   }, []);
 
-  return { firebaseUser, userProfile, loading };
+  return {
+    firebaseUser,
+    userProfile,
+    loading,
+    profileMissing: Boolean(firebaseUser && !userProfile)
+  };
 }

@@ -12,8 +12,28 @@ export default function InitDataButton() {
     try {
       // Données de test
       const users = [
-        { id: 'u1', name: 'Ahmed Ben Ali', avatar: '👤', phone: '+216 98 765 432', city: 'Tunis', level: 'Avancé', position: 'Milieu', rating: 4.5, matchesPlayed: 87, goals: 42, assists: 31, joined: '2024-03-15' },
-        { id: 'u2', name: 'Youssef Karray', avatar: '🧑', phone: '+216 55 123 456', city: 'Sfax', level: 'Pro', position: 'Attaquant', rating: 4.8, matchesPlayed: 150, goals: 120, assists: 45, joined: '2023-01-01' }
+        { id: 'u1', name: 'Ahmed Ben Ali', email: 'ahmed@kooratime.tn', avatar: '👤', phone: '+216 98 765 432', city: 'Tunis', level: 'Avancé', position: 'Milieu', rating: 4.5, matchesPlayed: 87, goals: 42, assists: 31, joined: '2024-03-15', role: 'admin' },
+        { id: 'u2', name: 'Youssef Karray', email: 'youssef@kooratime.tn', avatar: '🧑', phone: '+216 55 123 456', city: 'Sfax', level: 'Pro', position: 'Attaquant', rating: 4.8, matchesPlayed: 150, goals: 120, assists: 45, joined: '2023-01-01', role: 'user' }
+      ];
+
+      const places = [
+        {
+          id: 'p1',
+          adminId: 'u1',
+          adminName: 'Ahmed Ben Ali',
+          name: 'Stade El Menzah Mini',
+          city: 'Tunis',
+          address: 'Cité El Menzah VI',
+          lat: 36.8355,
+          lng: 10.1656,
+          phone: '+216 70 000 000',
+          pricePerHour: 120,
+          rating: 4.6,
+          image: '🏟️',
+          amenities: ['Parking', 'Vestiaires', 'Eclairage'],
+          isActive: true,
+          createdAt: '2026-04-20T10:00:00.000Z',
+        }
       ];
 
       const matches = [
@@ -34,7 +54,7 @@ export default function InitDataButton() {
         {
           id: 't1', name: 'Coupe Ramadan 2026', organizerId: 'u1', organizerName: 'Ahmed Ben Ali', city: 'Tunis',
           startDate: '2026-03-01', endDate: '2026-03-15', maxTeams: 8, currentTeams: 2, prizePool: 2000,
-          entryFee: 300, status: 'registration', type: '5v5', isLive: false,
+          entryFee: 300, status: 'registration', type: '5v5', isLive: false, isArchived: false,
           teams: [
             { id: 'tt1', name: 'FC Menzah', logo: '🔴', players: [], seed: 1 },
             { id: 'tt2', name: 'AS Lac', logo: '🔵', players: [], seed: 2 }
@@ -47,6 +67,9 @@ export default function InitDataButton() {
       // Injection dans Firestore
       for (const user of users) {
         await setDoc(doc(db, "users", user.id), user);
+      }
+      for (const place of places) {
+        await setDoc(doc(db, "places", place.id), place);
       }
       for (const match of matches) {
         await setDoc(doc(db, "matches", match.id), match);

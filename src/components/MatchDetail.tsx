@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { MapPin, Clock, Users, ArrowLeft, Star, CreditCard, MessageCircle, Share2, Check, X, Loader2, Navigation } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { MapPin, Clock, Users, ArrowLeft, Star, CreditCard, MessageCircle, Share2, Check, Loader2, Navigation } from 'lucide-react';
 import { matchService } from '../services/matchService';
 import { Match } from '../types';
 import { useAuth } from '../hooks/useAuth';
@@ -14,6 +14,7 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
 
   useEffect(() => {
     if (!matchId) return;
@@ -35,7 +36,7 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
   if (!match) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-20 text-center">
-        <p className="text-xl text-slate-400">Match non trouvé.</p>
+        <p className="text-xl text-slate-400">Match non trouve.</p>
         <button onClick={() => onNavigate('matches')} className="mt-4 btn-primary px-6 py-2 rounded-xl text-white">
           Retour aux matchs
         </button>
@@ -43,21 +44,14 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
     );
   }
 
-  const isJoined = userProfile && match.players.some(p => p.userId === userProfile.id);
-  const spotsLeft = match.maxPlayers - match.currentPlayers;
+  const isJoined = Boolean(userProfile && match.players.some((player) => player.userId === userProfile.id));
+  const spotsLeft = Math.max(0, match.maxPlayers - match.currentPlayers);
 
   const handleJoin = async () => {
     if (!userProfile || match.status !== 'open') return;
     setIsJoining(true);
     try {
-      await matchService.joinMatch(matchId, {
-        userId: userProfile.id,
-        name: userProfile.name,
-        avatar: userProfile.avatar,
-        position: userProfile.position,
-        rating: userProfile.rating,
-        paid: false
-      });
+      await matchService.joinMatch(matchId);
     } catch (error) {
       console.error("Erreur lors de l'inscription:", error);
     } finally {
@@ -65,8 +59,22 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
     }
   };
 
-  const formatDate = (d: string) => new Date(d).toLocaleDateString('fr-TN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const formatTime = (d: string) => new Date(d).toLocaleTimeString('fr-TN', { hour: '2-digit', minute: '2-digit' });
+  const handleLeave = async () => {
+    if (!userProfile || !isJoined) return;
+    setIsLeaving(true);
+    try {
+      await matchService.leaveMatch(matchId);
+    } catch (error) {
+      console.error('Erreur lors du depart du match:', error);
+    } finally {
+      setIsLeaving(false);
+    }
+  };
+
+  const formatDate = (dateValue: string) =>
+    new Date(dateValue).toLocaleDateString('fr-TN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const formatTime = (dateValue: string) =>
+    new Date(dateValue).toLocaleTimeString('fr-TN', { hour: '2-digit', minute: '2-digit' });
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
@@ -84,18 +92,18 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
                 match.status === 'full' ? 'bg-amber-500/20 text-amber-400' :
                 'bg-slate-500/20 text-slate-400'
               }`}>
-                {match.status === 'open' ? '🟢 Ouvert' : match.status === 'full' ? '🟡 Complet' : match.status}
+                {match.status === 'open' ? 'Ouvert' : match.status === 'full' ? 'Complet' : match.status}
               </span>
               <span className="px-3 py-1 rounded-full bg-dark-lighter text-sm font-semibold">{match.type}</span>
             </div>
-            <p className="text-slate-400">Organisé par <span className="text-white font-medium">{match.ownerName}</span></p>
+            <p className="text-slate-400">Organise par <span className="text-white font-medium">{match.ownerName}</span></p>
           </div>
           <div className="flex gap-2">
             <button className="p-2 rounded-lg glass hover:bg-white/10 transition-colors"><Share2 size={18} className="text-slate-400" /></button>
             <button onClick={() => onNavigate('chat', matchId)} className="p-2 rounded-lg glass hover:bg-white/10 transition-colors"><MessageCircle size={18} className="text-slate-400" /></button>
           </div>
         </div>
-        {match.description && <p className="text-slate-300 mt-4">{match.description}</p>}
+        {match.description ? <p className="text-slate-300 mt-4">{match.description}</p> : null}
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
@@ -107,7 +115,7 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
                 <span className="text-sm">Date & Heure</span>
               </div>
               <p className="font-semibold">{formatDate(match.datetime)}</p>
-              <p className="text-emerald-400 font-semibold">{formatTime(match.datetime)} — {match.duration} min</p>
+              <p className="text-emerald-400 font-semibold">{formatTime(match.datetime)} - {match.duration} min</p>
             </div>
             <div className="glass rounded-xl p-4">
               <div className="flex items-center gap-2 text-slate-400 mb-2">
@@ -155,8 +163,8 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
               Joueurs ({match.currentPlayers}/{match.maxPlayers})
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {match.players.map((player, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-dark/50 hover:bg-dark-lighter/50 transition-colors">
+              {match.players.map((player, index) => (
+                <div key={`${player.userId}-${index}`} className="flex items-center gap-3 p-3 rounded-xl bg-dark/50 hover:bg-dark-lighter/50 transition-colors">
                   <div className="w-10 h-10 rounded-full bg-dark-lighter flex items-center justify-center text-lg">
                     {player.avatar}
                   </div>
@@ -181,8 +189,8 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
                   </div>
                 </div>
               ))}
-              {Array.from({ length: spotsLeft }).map((_, i) => (
-                <div key={`empty-${i}`} className="flex items-center gap-3 p-3 rounded-xl border-2 border-dashed border-dark-border">
+              {Array.from({ length: spotsLeft }).map((_, index) => (
+                <div key={`empty-${index}`} className="flex items-center gap-3 p-3 rounded-xl border-2 border-dashed border-dark-border">
                   <div className="w-10 h-10 rounded-full border-2 border-dashed border-dark-border flex items-center justify-center text-slate-500">?</div>
                   <p className="text-sm text-slate-500">Place disponible</p>
                 </div>
@@ -203,8 +211,15 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
                 <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-emerald-500/20 flex items-center justify-center">
                   <Check size={32} className="text-emerald-400" />
                 </div>
-                <p className="font-semibold text-emerald-400">Tu es inscrit ! ✅</p>
+                <p className="font-semibold text-emerald-400">Tu es inscrit</p>
                 <p className="text-sm text-slate-400 mt-1">RDV le jour du match</p>
+                <button
+                  onClick={handleLeave}
+                  disabled={isLeaving}
+                  className="mt-4 w-full py-3 rounded-xl glass text-slate-200 font-semibold hover:bg-white/10 disabled:opacity-60"
+                >
+                  {isLeaving ? <Loader2 className="animate-spin mx-auto" /> : 'Quitter le match'}
+                </button>
               </div>
             ) : (
               <button
@@ -216,7 +231,7 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
                     : 'btn-primary text-white hover:bg-emerald-600'
                 }`}
               >
-                {isJoining ? <Loader2 className="animate-spin mx-auto" /> : match.status === 'full' ? 'Match Complet' : 'Rejoindre le Match'}
+                {isJoining ? <Loader2 className="animate-spin mx-auto" /> : match.status === 'full' ? 'Match complet' : 'Rejoindre le match'}
               </button>
             )}
           </div>

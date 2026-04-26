@@ -1,21 +1,22 @@
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  orderBy, 
+import {
+  addDoc,
+  collection,
+  limit,
   onSnapshot,
+  orderBy,
+  query,
   Timestamp,
-  limit
+  where,
 } from "firebase/firestore";
+import { chatMessages, chatRooms } from "../data";
 import { db } from "../firebase";
-import { Message } from "../types";
+import { ChatRoom, Message } from "../types";
 
 const MESSAGES_COLLECTION = "messages";
+const CHAT_ROOMS_COLLECTION = "chatRooms";
 
 export const chatService = {
-  // Envoyer un message
-  async sendMessage(roomId: string, author: { id: string, name: string, avatar: string }, text: string) {
+  async sendMessage(roomId: string, author: { id: string; name: string; avatar: string }, text: string) {
     try {
       await addDoc(collection(db, MESSAGES_COLLECTION), {
         roomId,
@@ -24,33 +25,63 @@ export const chatService = {
         authorAvatar: author.avatar,
         text,
         timestamp: Timestamp.now(),
-        isSystem: false
+        isSystem: false,
       });
     } catch (error) {
       throw error;
     }
   },
 
-  // Écouter les messages d'un salon en temps réel
+  subscribeToRooms(callback: (rooms: ChatRoom[]) => void) {
+    const q = query(collection(db, CHAT_ROOMS_COLLECTION), limit(50));
+
+    return onSnapshot(q, (querySnapshot) => {
+      if (querySnapshot.empty) {
+        callback(chatRooms);
+        return;
+      }
+
+      const rooms = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        unreadCount: 0,
+        members: 0,
+        avatar: "💬",
+        lastMessage: "",
+        lastMessageTime: "",
+        ...doc.data(),
+      })) as ChatRoom[];
+
+      callback(rooms);
+    });
+  },
+
   subscribeToMessages(roomId: string, callback: (messages: Message[]) => void) {
     const q = query(
       collection(db, MESSAGES_COLLECTION),
       where("roomId", "==", roomId),
       orderBy("timestamp", "asc"),
-      limit(100)
+      limit(100),
     );
 
     return onSnapshot(q, (querySnapshot) => {
-      const messages = querySnapshot.docs.map(doc => {
+      if (querySnapshot.empty) {
+        callback(chatMessages.filter((message) => message.roomId === roomId));
+        return;
+      }
+
+      const messages = querySnapshot.docs.map((doc) => {
         const data = doc.data();
         return {
           id: doc.id,
           ...data,
-          // Conversion du Timestamp Firebase en string pour la compatibilité avec le type Message
-          timestamp: data.timestamp?.toDate().toLocaleTimeString('fr-TN', { hour: '2-digit', minute: '2-digit' }) || ''
+          timestamp: data.timestamp?.toDate().toLocaleTimeString("fr-TN", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }) || "",
         } as Message;
       });
+
       callback(messages);
     });
-  }
+  },
 };

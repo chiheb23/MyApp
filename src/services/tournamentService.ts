@@ -21,10 +21,12 @@ export const tournamentService = {
   subscribeToTournaments(callback: (tournaments: Tournament[]) => void) {
     const q = query(collection(db, TOURNAMENTS_COLLECTION), orderBy("startDate", "asc"));
     return onSnapshot(q, (querySnapshot) => {
-      const tournaments = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Tournament[];
+      const tournaments = querySnapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }) as Tournament)
+        .filter(tournament => !tournament.isArchived);
       callback(tournaments);
     });
   },
@@ -34,7 +36,8 @@ export const tournamentService = {
     const docRef = doc(db, TOURNAMENTS_COLLECTION, id);
     return onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        callback({ id: docSnap.id, ...docSnap.data() } as Tournament);
+        const tournament = { id: docSnap.id, ...docSnap.data() } as Tournament;
+        callback(tournament.isArchived ? null : tournament);
       } else {
         callback(null);
       }
@@ -47,7 +50,8 @@ export const tournamentService = {
       const docRef = doc(db, TOURNAMENTS_COLLECTION, id);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        return { id: docSnap.id, ...docSnap.data() } as Tournament;
+        const tournament = { id: docSnap.id, ...docSnap.data() } as Tournament;
+        return tournament.isArchived ? null : tournament;
       }
       return null;
     } catch (error) {
@@ -60,6 +64,7 @@ export const tournamentService = {
     try {
       const docRef = await addDoc(collection(db, TOURNAMENTS_COLLECTION), {
         ...tournamentData,
+        isArchived: false,
         createdAt: Timestamp.now()
       });
       return docRef.id;
@@ -75,6 +80,19 @@ export const tournamentService = {
       await updateDoc(docRef, {
         teams: arrayUnion(teamData),
         currentTeams: increment(1)
+      });
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async archiveTournament(tournamentId: string, archivedBy: string) {
+    try {
+      const docRef = doc(db, TOURNAMENTS_COLLECTION, tournamentId);
+      await updateDoc(docRef, {
+        isArchived: true,
+        archivedBy,
+        archivedAt: new Date().toISOString(),
       });
     } catch (error) {
       throw error;

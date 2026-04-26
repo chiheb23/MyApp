@@ -15,6 +15,7 @@ interface NavbarProps {
 }
 
 export default function Navbar({ currentPage, onNavigate }: NavbarProps) {
+  void onNavigate;
   const { firebaseUser, userProfile } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -30,6 +31,16 @@ export default function Navbar({ currentPage, onNavigate }: NavbarProps) {
   }, [firebaseUser]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadNotificationIds = notifications.filter((n) => !n.read).map((n) => n.id);
+
+  const handleMarkAllAsRead = async () => {
+    if (unreadNotificationIds.length === 0) return;
+    try {
+      await notificationService.markAllAsRead(unreadNotificationIds);
+    } catch (error) {
+      console.error('Erreur lors du marquage des notifications:', error);
+    }
+  };
 
   if (currentPage === 'landing') return null;
 
@@ -101,7 +112,13 @@ export default function Navbar({ currentPage, onNavigate }: NavbarProps) {
                   <div className="absolute right-0 mt-2 w-80 glass rounded-xl shadow-xl overflow-hidden animate-slide-up z-50">
                     <div className="p-3 border-b border-dark-border flex justify-between items-center">
                       <h3 className="font-semibold text-sm">Notifications</h3>
-                      <span className="text-xs text-emerald-400 cursor-pointer">Tout marquer lu</span>
+                      <button
+                        onClick={handleMarkAllAsRead}
+                        disabled={unreadNotificationIds.length === 0}
+                        className="text-xs text-emerald-400 disabled:text-slate-500"
+                      >
+                        Tout marquer lu
+                      </button>
                     </div>
                     <div className="max-h-80 overflow-y-auto">
                       {notifications.length > 0 ? (

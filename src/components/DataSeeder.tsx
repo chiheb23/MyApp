@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { db } from '../firebase';
-import { collection, doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { 
   users, 
   places, 
@@ -33,7 +33,10 @@ export default function DataSeeder() {
       await Promise.all(matchesPromises);
 
       // 4. Tournaments
-      const tournamentsPromises = tournaments.map(t => setDoc(doc(db, 'tournaments', t.id), t));
+      const tournamentsPromises = tournaments.map(t => setDoc(doc(db, 'tournaments', t.id), {
+        ...t,
+        isArchived: false
+      }));
       await Promise.all(tournamentsPromises);
 
       // 5. Chat Rooms
@@ -41,7 +44,7 @@ export default function DataSeeder() {
       await Promise.all(chatRoomsPromises);
 
       // 6. Chat Messages
-      const chatMessagesPromises = chatMessages.map(msg => setDoc(doc(db, 'chatMessages', msg.id), msg));
+      const chatMessagesPromises = chatMessages.map(msg => setDoc(doc(db, 'messages', msg.id), msg));
       await Promise.all(chatMessagesPromises);
 
       // 7. Notifications
