@@ -1,8 +1,10 @@
 import { MapPin, Clock, Users, ChevronRight, Trophy, TrendingUp, Calendar, Bell, Loader2, Navigation, CheckCircle2 } from 'lucide-react';
-import { tournaments, notifications, currentUser } from '../data';
 import { matchService, calculateDistance } from '../services/matchService';
-import { Match } from '../types';
+import { notificationService } from '../services/notificationService';
+import { tournamentService } from '../services/tournamentService';
+import { Match, Tournament, Notification as AppNotification } from '../types';
 import { useState, useEffect } from 'react';
+import { useAuth } from '../hooks/useAuth';
 import InitDataButton from './InitDataButton';
 
 interface DashboardProps {
@@ -10,7 +12,10 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
+  const { userProfile } = useAuth();
   const [upcomingMatches, setUpcomingMatches] = useState<(Match & { distance?: number })[]>([]);
+  const [activeTournaments, setActiveTournaments] = useState<Tournament[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
   const [joiningId, setJoiningId] = useState<string | null>(null);
@@ -33,7 +38,10 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = matchService.subscribeToMatches((allMatches) => {
+    if (!userProfile) return;
+
+    // Souscription aux matchs
+    const unsubscribeMatches = matchService.subscribeToMatches((allMatches) => {
       let matchesWithDistance = allMatches.map(m => {
         if (userLocation) {
           return { ...m, distance: calculateDistance(userLocation.lat, userLocation.lng, m.lat, m.lng) };
@@ -53,33 +61,44 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       setLoading(false);
     });
 
-    return () => unsubscribe();
-  }, [userLocation]);
+    // Souscription aux tournois
+    const unsubscribeTournaments = tournamentService.subscribeToTournaments((allTournaments) => {
+      setActiveTournaments(allTournaments.filter(t => t.status !== 'completed').slice(0, 2));
+    });
+
+    // Souscription aux notifications
+    const unsubscribeNotifications = notificationService.subscribeToNotifications(userProfile.id, (allNotifs) => {
+      setNotifications(allNotifs);
+    });
+
+    return () => {
+      unsubscribeMatches();
+      unsubscribeTournaments();
+      unsubscribeNotifications();
+    };
+  }, [userLocation, userProfile]);
 
   const handleQuickJoin = async (e: React.MouseEvent, match: Match) => {
-    e.stopPropagation(); // Empêcher la navigation vers le détail
-    if (match.status !== 'open') return;
+    e.stopPropagation();
+    if (!userProfile || match.status !== 'open') return;
     
     setJoiningId(match.id);
     try {
       await matchService.joinMatch(match.id, {
-        userId: currentUser.id,
-        name: currentUser.name,
-        avatar: currentUser.avatar,
-        position: currentUser.position,
-        rating: currentUser.rating,
+        userId: userProfile.id,
+        name: userProfile.name,
+        avatar: userProfile.avatar,
+        position: userProfile.position,
+        rating: userProfile.rating,
         paid: false
       });
-      // Succès : le listener temps réel mettra à jour l'UI
     } catch (error) {
       console.error("Erreur lors du join rapide:", error);
-      alert("Erreur lors de l'inscription.");
     } finally {
       setJoiningId(null);
     }
   };
 
-  const activeTournaments = tournaments.filter(t => t.status !== 'completed').slice(0, 2);
   const unreadNotifications = notifications.filter(n => !n.read);
 
   const formatDate = (d: string) => {
@@ -91,6 +110,8 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     return date.toLocaleTimeString('fr-TN', { hour: '2-digit', minute: '2-digit' });
   };
 
+  if (!userProfile) return null;
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
       <InitDataButton />
@@ -99,7 +120,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">
-            Salut {currentUser.name.split(' ')[0]} 👋
+            Salut {userProfile.name.split(' ')[0]} 👋
           </h1>
           <p className="text-slate-400 mt-1">Prêt pour ton prochain match ?</p>
         </div>
@@ -114,10 +135,10 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Matchs joués', value: currentUser.matchesPlayed, icon: Calendar, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-          { label: 'Buts marqués', value: currentUser.goals, icon: TrendingUp, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-          { label: 'Passes décisives', value: currentUser.assists, icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-          { label: 'Note', value: currentUser.rating.toFixed(1), icon: Trophy, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+          { label: 'Matchs joués', value: userProfile.matchesPlayed, icon: Calendar, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+          { label: 'Buts marqués', value: userProfile.goals, icon: TrendingUp, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+          { label: 'Passes décisives', value: userProfile.assists, icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+          { label: 'Note', value: userProfile.rating.toFixed(1), icon: Trophy, color: 'text-purple-400', bg: 'bg-purple-500/10' },
         ].map((s, i) => (
           <div key={i} className="glass rounded-xl p-4 card-hover">
             <div className="flex items-center gap-3">
@@ -156,7 +177,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             </div>
           ) : upcomingMatches.map(match => {
             const isFull = match.currentPlayers >= match.maxPlayers;
-            const isJoined = match.players.some(p => p.userId === currentUser.id);
+            const isJoined = match.players.some(p => p.userId === userProfile.id);
             const placesLeft = match.maxPlayers - match.currentPlayers;
 
             return (
@@ -245,7 +266,11 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
             <div className="space-y-2">
               {notifications.slice(0, 4).map(notif => (
-                <div key={notif.id} className={`glass rounded-xl p-3 card-hover cursor-pointer ${!notif.read ? 'border-l-2 border-l-emerald-400' : ''}`}>
+                <div 
+                  key={notif.id} 
+                  onClick={() => notificationService.markAsRead(notif.id)}
+                  className={`glass rounded-xl p-3 card-hover cursor-pointer ${!notif.read ? 'border-l-2 border-l-emerald-400' : ''}`}
+                >
                   <div className="flex items-start gap-3">
                     <span className="text-lg mt-0.5">
                       {notif.type === 'match_invite' ? '📩' :

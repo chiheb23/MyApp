@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { MapPin, Clock, Users, ArrowLeft, Star, CreditCard, MessageCircle, Share2, Check, X } from 'lucide-react';
-import { currentUser } from '../data';
+import { MapPin, Clock, Users, ArrowLeft, Star, CreditCard, MessageCircle, Share2, Check, X, Loader2, Navigation } from 'lucide-react';
 import { matchService } from '../services/matchService';
 import { Match } from '../types';
+import { useAuth } from '../hooks/useAuth';
 
 interface MatchDetailProps {
   matchId: string;
@@ -10,34 +10,24 @@ interface MatchDetailProps {
 }
 
 export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
+  const { userProfile, loading: authLoading } = useAuth();
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);
-  const [joined, setJoined] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
 
   useEffect(() => {
     if (!matchId) return;
-
-    // Récupérer le match initial
-    matchService.getMatchById(matchId).then(data => {
-      if (data) {
-        setMatch(data);
-        // Vérifier si l'utilisateur est déjà dans la liste des joueurs
-        const isAlreadyJoined = data.players.some(p => p.userId === currentUser.id);
-        setJoined(isAlreadyJoined);
-      }
+    const unsubscribe = matchService.subscribeToMatch(matchId, (data) => {
+      setMatch(data);
       setLoading(false);
     });
-
-    // Optionnel: S'abonner aux mises à jour en temps réel pour ce match spécifique
-    // Pour simplifier ici, on utilise le chargement initial, mais on pourrait ajouter un listener
+    return () => unsubscribe();
   }, [matchId]);
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex justify-center py-20">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+        <Loader2 className="animate-spin text-emerald-500" size={40} />
       </div>
     );
   }
@@ -53,19 +43,37 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
     );
   }
 
+  const isJoined = userProfile && match.players.some(p => p.userId === userProfile.id);
+  const spotsLeft = match.maxPlayers - match.currentPlayers;
+
+  const handleJoin = async () => {
+    if (!userProfile || match.status !== 'open') return;
+    setIsJoining(true);
+    try {
+      await matchService.joinMatch(matchId, {
+        userId: userProfile.id,
+        name: userProfile.name,
+        avatar: userProfile.avatar,
+        position: userProfile.position,
+        rating: userProfile.rating,
+        paid: false
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'inscription:", error);
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
   const formatDate = (d: string) => new Date(d).toLocaleDateString('fr-TN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const formatTime = (d: string) => new Date(d).toLocaleTimeString('fr-TN', { hour: '2-digit', minute: '2-digit' });
 
-  const spotsLeft = match.maxPlayers - match.currentPlayers;
-
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-      {/* Back button */}
       <button onClick={() => onNavigate('matches')} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
         <ArrowLeft size={20} /> Retour aux matchs
       </button>
 
-      {/* Header */}
       <div className="glass rounded-2xl p-6">
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
           <div>
@@ -84,17 +92,14 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
           </div>
           <div className="flex gap-2">
             <button className="p-2 rounded-lg glass hover:bg-white/10 transition-colors"><Share2 size={18} className="text-slate-400" /></button>
-            <button onClick={() => onNavigate('chat')} className="p-2 rounded-lg glass hover:bg-white/10 transition-colors"><MessageCircle size={18} className="text-slate-400" /></button>
+            <button onClick={() => onNavigate('chat', matchId)} className="p-2 rounded-lg glass hover:bg-white/10 transition-colors"><MessageCircle size={18} className="text-slate-400" /></button>
           </div>
         </div>
-
         {match.description && <p className="text-slate-300 mt-4">{match.description}</p>}
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
-        {/* Main info */}
         <div className="md:col-span-2 space-y-6">
-          {/* Details cards */}
           <div className="grid grid-cols-2 gap-4">
             <div className="glass rounded-xl p-4">
               <div className="flex items-center gap-2 text-slate-400 mb-2">
@@ -130,7 +135,6 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
             </div>
           </div>
 
-          {/* Map placeholder */}
           <div className="glass rounded-xl overflow-hidden">
             <div className="h-48 bg-dark-card relative flex items-center justify-center">
               <div className="text-center">
@@ -138,15 +142,13 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
                 <p className="text-slate-400 text-sm">{match.placeName}</p>
                 <p className="text-xs text-slate-500">{match.lat.toFixed(4)}°N, {match.lng.toFixed(4)}°E</p>
               </div>
-              {/* Simulated map grid */}
               <div className="absolute inset-0 bg-grid opacity-20" />
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-emerald-500/30 rounded-full flex items-center justify-center animate-pulse">
-                <MapPin size={16} className="text-emerald-400" />
+                <Navigation size={16} className="text-emerald-400" />
               </div>
             </div>
           </div>
 
-          {/* Players list */}
           <div className="glass rounded-2xl p-6">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
               <Users size={18} className="text-emerald-400" />
@@ -179,12 +181,9 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
                   </div>
                 </div>
               ))}
-              {/* Empty spots */}
               {Array.from({ length: spotsLeft }).map((_, i) => (
                 <div key={`empty-${i}`} className="flex items-center gap-3 p-3 rounded-xl border-2 border-dashed border-dark-border">
-                  <div className="w-10 h-10 rounded-full border-2 border-dashed border-dark-border flex items-center justify-center text-slate-500">
-                    ?
-                  </div>
+                  <div className="w-10 h-10 rounded-full border-2 border-dashed border-dark-border flex items-center justify-center text-slate-500">?</div>
                   <p className="text-sm text-slate-500">Place disponible</p>
                 </div>
               ))}
@@ -192,7 +191,6 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
           </div>
         </div>
 
-        {/* Sidebar — Join / Payment */}
         <div className="space-y-4">
           <div className="glass rounded-2xl p-6 sticky top-24">
             <div className="text-center mb-6">
@@ -200,19 +198,7 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
               <p className="text-sm text-slate-400">par joueur</p>
             </div>
 
-            {!joined ? (
-              <button
-                onClick={() => setShowPayment(true)}
-                disabled={match.status === 'full'}
-                className={`w-full py-4 rounded-xl font-semibold text-lg transition-all ${
-                  match.status === 'full'
-                    ? 'bg-dark-lighter text-slate-500 cursor-not-allowed'
-                    : 'btn-primary text-white'
-                }`}
-              >
-                {match.status === 'full' ? 'Match Complet' : 'Rejoindre le Match'}
-              </button>
-            ) : (
+            {isJoined ? (
               <div className="text-center">
                 <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-emerald-500/20 flex items-center justify-center">
                   <Check size={32} className="text-emerald-400" />
@@ -220,77 +206,19 @@ export default function MatchDetail({ matchId, onNavigate }: MatchDetailProps) {
                 <p className="font-semibold text-emerald-400">Tu es inscrit ! ✅</p>
                 <p className="text-sm text-slate-400 mt-1">RDV le jour du match</p>
               </div>
+            ) : (
+              <button
+                onClick={handleJoin}
+                disabled={match.status === 'full' || isJoining}
+                className={`w-full py-4 rounded-xl font-semibold text-lg transition-all ${
+                  match.status === 'full'
+                    ? 'bg-dark-lighter text-slate-500 cursor-not-allowed'
+                    : 'btn-primary text-white hover:bg-emerald-600'
+                }`}
+              >
+                {isJoining ? <Loader2 className="animate-spin mx-auto" /> : match.status === 'full' ? 'Match Complet' : 'Rejoindre le Match'}
+              </button>
             )}
-
-            {showPayment && !joined && (
-              <div className="mt-4 space-y-3 animate-slide-up">
-                <div className="glass rounded-xl p-4">
-                  <p className="text-sm font-semibold mb-3">Paiement</p>
-                  <div className="space-y-2">
-                    {['💳 Carte bancaire', '📱 D17 / Flouci', '💰 Espèces sur place'].map((method, i) => (
-                      <label key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-dark/50 cursor-pointer">
-                        <input type="radio" name="payment" defaultChecked={i === 0} className="accent-emerald-500" />
-                        <span className="text-sm">{method}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={async () => {
-                      setIsJoining(true);
-                      try {
-                        const player = {
-                          userId: currentUser.id,
-                          name: currentUser.name,
-                          avatar: currentUser.avatar,
-                          position: currentUser.position,
-                          rating: currentUser.rating,
-                          paid: true // Simulé pour le moment
-                        };
-                        await matchService.joinMatch(matchId, player);
-                        setJoined(true);
-                        setShowPayment(false);
-                        // Rafraîchir les données du match localement
-                        const updatedMatch = await matchService.getMatchById(matchId);
-                        if (updatedMatch) setMatch(updatedMatch);
-                      } catch (error) {
-                        console.error("Erreur lors de l'inscription:", error);
-                        alert("Une erreur est survenue.");
-                      } finally {
-                        setIsJoining(false);
-                      }
-                    }}
-                    disabled={isJoining}
-                    className="flex-1 py-3 rounded-xl btn-primary text-white font-semibold disabled:opacity-50"
-                  >
-                    {isJoining ? 'Inscription...' : `Confirmer (${match.fee} DT)`}
-                  </button>
-                  <button
-                    onClick={() => setShowPayment(false)}
-                    className="px-4 py-3 rounded-xl glass hover:bg-white/10 transition-colors"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="mt-6 space-y-3 text-sm text-slate-400">
-              <div className="flex justify-between">
-                <span>Total collecté</span>
-                <span className="text-white font-medium">{match.players.filter(p => p.paid).length * match.fee} DT</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Joueurs payés</span>
-                <span className="text-emerald-400 font-medium">{match.players.filter(p => p.paid).length}/{match.currentPlayers}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Durée</span>
-                <span className="text-white font-medium">{match.duration} min</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>

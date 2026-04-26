@@ -3,7 +3,11 @@ import {
   getDoc, 
   setDoc, 
   updateDoc, 
-  Timestamp 
+  Timestamp,
+  collection,
+  onSnapshot,
+  query,
+  orderBy
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { User } from "../types";
@@ -47,5 +51,19 @@ export const userService = {
     } catch (error) {
       throw error;
     }
+  },
+
+  // Alias pour la compatibilité avec useAuth
+  async updateUserProfile(userId: string, userData: Partial<User>) {
+    return this.saveUserProfile(userId, userData);
+  },
+
+  // Souscription à tous les utilisateurs (Admin)
+  subscribeToUsers(callback: (users: User[]) => void) {
+    const q = query(collection(db, USERS_COLLECTION), orderBy("name", "asc"));
+    return onSnapshot(q, (snapshot) => {
+      const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+      callback(users);
+    });
   }
 };
